@@ -2964,9 +2964,9 @@ body.am-board #screen-bulloff.turnier.active {
       gewinnt.</p>
   </div>
 
-    <!-- Nur angemeldet und nur im Schnellen Spiel / Finisher: der Stand
-         wandert als Ganzes zum Server, Mitspieler mit Konto sehen ihn und
-         tragen mit ein. -->
+    <!-- Nur angemeldet und nur bei freien Spielen (Schnelles Spiel,
+         Cricket, Round the World, Finisher): der Stand wandert als Ganzes
+         zum Server, Mitspieler mit Konto sehen ihn und tragen mit ein. -->
     <div class="card hidden" id="settings-online">
     <h2>Online spielen</h2>
     <div class="setting">
@@ -4547,7 +4547,9 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
    * kennen und wessen Stand das ist. Alles andere am Spiel bleibt, wie es
    * ist – der Server verwahrt bloss und rechnet nichts.
    */
-  var LIVE_KINDS = { quick: 1, finisher: 1 };
+  /* Alle freien Spiele gehen online -- der Stand wandert bei jeder Spielart
+     als Ganzes. Nur das Turnier hat seinen eigenen, geteilten Weg. */
+  var LIVE_KINDS = { quick: 1, finisher: 1, cricket: 1, rtw: 1 };
 
   function liveSpiel() { return S.game && S.game.online ? S.game : null; }
 
@@ -6311,8 +6313,8 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
     var kannTeilen = !!(window.DartKonto && window.DartKonto.nutzer()) && S.mode === '501';
     $('setting-geteilt').classList.toggle('hidden', !kannTeilen);
 
-    /* Online spielen: nur angemeldet und nur da, wo der Stand als Ganzes
-       wandern kann (Schnelles Spiel, Finisher). */
+    /* Online spielen: nur angemeldet und nur bei freien Spielen -- das
+       Turnier hat seinen eigenen, geteilten Weg. */
     var onlineKarte = $('settings-online');
     if (onlineKarte) {
       var kannOnline = !!liveNutzer() && !!(window.DartSync && window.DartSync.live) && !!LIVE_KINDS[S.mode];
@@ -7623,7 +7625,7 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
     var active = g.done ? g.winner : gameTurnPlayer(g);
     var visit = gameVisitDarts(g);
 
-    $('cricket-sub').textContent = (g.scoring ? 'mit Punkten' : 'ohne Punkte') + ' · ' + g.players.length + ' Spieler';
+    $('cricket-sub').textContent = (g.scoring ? 'mit Punkten' : 'ohne Punkte') + ' · ' + g.players.length + ' Spieler' + liveLabel(g);
 
     var head = '<div class="cr-cell cr-corner"></div>' + g.players.map(function (id) {
       var mpr = st.darts[id] ? (st.allMarks[id] / st.darts[id]) * 3 : 0;
@@ -7723,9 +7725,9 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
     var active = g.done ? g.winner : gameTurnPlayer(g);
     var visit = gameVisitDarts(g);
 
-    $('rtw-sub').textContent = g.boost
+    $('rtw-sub').textContent = (g.boost
       ? 'Boost · Doppel überspringt 1 · Triple überspringt 2'
-      : 'Einfach · jeder Treffer rückt ein Feld weiter';
+      : 'Einfach · jeder Treffer rückt ein Feld weiter') + liveLabel(g);
 
     $('rtw-board').innerHTML = g.players.map(function (id) {
       var t = st.target[id];

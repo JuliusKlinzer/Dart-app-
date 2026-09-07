@@ -1032,6 +1032,65 @@ async function main() {
       await tobi.page.locator('[data-action="ov-hinweis-zu"]').click();
     }
 
+    /* Dieselbe Mechanik traegt jede freie Spielart: Cricket online, Tobi
+       steigt ein, ein Dart von Julius kommt bei Tobi an, einer von Tobi bei
+       Julius. */
+    group('Online-Spiel: Cricket an zwei Orten');
+    await julius.page.evaluate((tid) => {
+      const D = window.__dart, S = D.state();
+      S.game = null; S.lineup = [window.DartKonto.nutzer().id, tid]; S.settings.online = 1;
+      D.setScreen('setup');
+    }, tobiId);
+    await julius.page.locator('[data-action="set-mode"][data-value="cricket"]').click();
+    check('die Online-Einstellung gibt es auch im Cricket',
+      await julius.page.locator('#settings-online').isVisible());
+    await julius.page.locator('[data-action="set-mode"][data-value="rtw"]').click();
+    check('und im Round the World', await julius.page.locator('#settings-online').isVisible());
+    await julius.page.locator('[data-action="set-mode"][data-value="cricket"]').click();
+    await julius.page.locator('[data-action="start-game"]').click();
+    await julius.page.waitForTimeout(900);
+    await julius.page.locator('#bulloff-buttons [data-action="pick-starter"]').first().click();
+    await julius.page.waitForTimeout(700);
+    const cricketSid = await julius.page.evaluate(() => {
+      const g = window.__dart.state().game;
+      return g && g.online && !g.online.wartet ? g.online.sid : null;
+    });
+    check('das Cricket liegt beim Server', !!cricketSid);
+    await tobi.page.evaluate(() => window.__dart.turnierListeAktualisieren());
+    await tobi.page.waitForTimeout(800);
+    check('Tobi sieht es als Cricket', (await tobi.page.locator('#beitreten-liste').innerText()).includes('Cricket'));
+    await tobi.page.locator('[data-action="live-beitreten"]').click();
+    await tobi.page.waitForTimeout(600);
+    check('Tobi steht im Cricket', await tobi.page.locator('#screen-cricket').isVisible());
+    check('die Kopfzeile sagt online', (await tobi.page.locator('#cricket-sub').innerText()).includes('online'));
+    await cDart(julius.page, 'T20');
+    await julius.page.waitForTimeout(700);
+    await tobi.page.evaluate(() => window.DartSync.live.abgleich().then((neu) => { if (neu) window.__dart.render(); }));
+    await tobi.page.waitForTimeout(300);
+    check('Julius’ T20 kommt bei Tobi an',
+      await tobi.page.evaluate(() => window.__dart.state().game.throws.length === 1));
+    await cDart(tobi.page, 'T19');
+    await tobi.page.waitForTimeout(700);
+    await julius.page.evaluate(() => window.DartSync.live.abgleich().then((neu) => { if (neu) window.__dart.render(); }));
+    await julius.page.waitForTimeout(300);
+    check('Tobis T19 kommt bei Julius an',
+      await julius.page.evaluate(() => window.__dart.state().game.throws.length === 2));
+    /* Aufraeumen: Julius bricht ab, bei Tobi schliesst sich das Spiel. */
+    await julius.page.evaluate(() => {
+      const D = window.__dart; D.ui().overlay = { type: 'confirm-discard-game' }; D.render();
+    });
+    await julius.page.locator('[data-action="ov-discard-game"]').click();
+    await julius.page.waitForTimeout(600);
+    await tobi.page.evaluate(() => window.DartSync.live.abgleich().then((neu) => { if (neu) window.__dart.render(); }));
+    await tobi.page.waitForTimeout(400);
+    check('bei Tobi ist das abgebrochene Spiel weg',
+      await tobi.page.evaluate(() => !window.__dart.state().game));
+    if (await tobi.page.locator('[data-action="ov-hinweis-zu"]').count()) {
+      await tobi.page.locator('[data-action="ov-hinweis-zu"]').click();
+    }
+    await julius.page.evaluate(() => { window.__dart.state().settings.online = 0; });
+    await tobi.page.evaluate(() => { window.__dart.state().settings.online = 0; });
+
     /*
      * Kamera-Kopplung: Julius' iPad schaltet in den Kamera-Modus, Tobis
      * Geraet spielt das iPhone am Stativ (Fern-Eingabe, spaeter echte
