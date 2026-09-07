@@ -3700,10 +3700,48 @@ body.am-board #screen-bulloff.turnier.active {
     o.start(t); o.stop(t + 0.04);
   }
 
+  /*
+   * Das Klopfen: zwei kurze, holzige Schlaege - "der andere hat eingetragen".
+   * Im Online-Spiel schaut man nicht dauernd aufs Handy, sondern auf die
+   * Scheibe; das Klopfen holt einen zurueck. Dazu, wo es geht (Android),
+   * ein kurzes Vibrieren - iOS kennt das im Browser nicht, da bleibt der Ton.
+   */
+  var zuletztGeklopft = 0;
+  function schlag(t, freq) {
+    var o = ctx.createOscillator();
+    var g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    o.frequency.exponentialRampToValueAtTime(freq * 0.55, t + 0.07);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.8, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(t); o.stop(t + 0.12);
+    var puffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.02), ctx.sampleRate);
+    var d = puffer.getChannelData(0);
+    for (var i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+    var r = ctx.createBufferSource();
+    r.buffer = puffer;
+    var rg = ctx.createGain();
+    rg.gain.value = 0.3;
+    r.connect(rg); rg.connect(ctx.destination);
+    r.start(t);
+  }
+  function spieleKlopfen() {
+    try { if (navigator.vibrate) navigator.vibrate([70, 70, 70]); } catch (e) { /* egal */ }
+    if (!ctx || ctx.state !== 'running') return;
+    var t = ctx.currentTime;
+    if (t - zuletztGeklopft < 0.3) return;
+    zuletztGeklopft = t;
+    schlag(t, 240);
+    schlag(t + 0.17, 210);
+  }
+
   document.addEventListener('pointerdown', weckauf, { capture: true, passive: true });
   document.addEventListener('keydown', weckauf, true);
 
-  window.DartSound = { pomp: spielePomp, klick: spieleKlick };
+  window.DartSound = { pomp: spielePomp, klick: spieleKlick, klopfen: spieleKlopfen };
 })();
 
 /*
@@ -4033,6 +4071,8 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
   /* Klaenge sind optional - ohne js/sound.js bleibt alles stumm. */
   function pomp() { if (window.DartSound) window.DartSound.pomp(); }
   function klick() { if (window.DartSound) window.DartSound.klick(); }
+  /* Zwei Schlaege: im Online-Spiel hat der andere gerade eingetragen. */
+  function klopfen() { UI.klopfen = Date.now(); if (window.DartSound && window.DartSound.klopfen) window.DartSound.klopfen(); }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
   function uid() { return Math.random().toString(36).slice(2, 9); }
   function sum(arr, f) { var t = 0; for (var i = 0; i < arr.length; i++) t += f(arr[i]); return t; }
@@ -4655,6 +4695,10 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
     /* Halbfertige Dialoge beziehen sich auf den alten Stand. */
     if (UI.overlay && (UI.overlay.type === 'checkout-darts' || UI.overlay.type === 'edit-visit')) UI.overlay = null;
     var wer = spiel.geaendertVonName || 'Dein Mitspieler';
+    /* Der andere hat eingetragen: klopfen, damit man vom Board zum Handy
+       schaut. Eigene Staende (Konflikt-Antwort auf den eigenen PUT, zweites
+       eigenes Geraet) klopfen nicht. */
+    if (spiel.geaendertVon && spiel.geaendertVon !== liveNutzer()) klopfen();
 
     if (spiel.status === 'zu') {
       /* Der andere hat gespeichert oder abgebrochen. Gespeichert wird hier

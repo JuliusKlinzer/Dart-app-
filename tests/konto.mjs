@@ -941,6 +941,8 @@ async function main() {
       return leg.visits.length === 1 && leg.visits[0].s === 60 && D.remainingIn(leg, m.p[0]) === 241;
     });
     check('Tobi sieht Julius’ Aufnahme und den Rest 241', tobiSieht);
+    check('und es hat bei Tobi geklopft', await tobi.page.evaluate(() => !!window.__dart.ui().klopfen));
+    await tobi.page.evaluate(() => { window.__dart.ui().klopfen = 0; });
 
     /* Tobi traegt fuer sich 100 ein -- Julius sieht es. */
     await typeScoreAuf(tobi.page, 100);
@@ -952,6 +954,7 @@ async function main() {
       return leg.visits.length === 2 && leg.visits[1].s === 100 && D.remainingIn(leg, m.p[1]) === 201;
     });
     check('Julius sieht Tobis Aufnahme und dessen Rest 201', juliusSieht);
+    check('und bei Julius hat es geklopft', await julius.page.evaluate(() => !!window.__dart.ui().klopfen));
     check('bei Julius ist wieder Julius am Wurf', await julius.page.evaluate(() => {
       const D = window.__dart, m = D.currentMatch();
       return D.activePlayer(D.activeLeg(m), m) === m.p[0];
@@ -969,6 +972,7 @@ async function main() {
       D.save();
     });
     await tobi.page.waitForTimeout(900);
+    await tobi.page.evaluate(() => { window.__dart.ui().klopfen = 0; });
     const tobiNachKonflikt = await tobi.page.evaluate(() => {
       const D = window.__dart, m = D.currentMatch(), leg = D.activeLeg(m);
       return { n: leg.visits.length, letzte: leg.visits[leg.visits.length - 1].s, overlay: D.ui().overlay && D.ui().overlay.type };

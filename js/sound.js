@@ -91,8 +91,46 @@
     o.start(t); o.stop(t + 0.04);
   }
 
+  /*
+   * Das Klopfen: zwei kurze, holzige Schlaege - "der andere hat eingetragen".
+   * Im Online-Spiel schaut man nicht dauernd aufs Handy, sondern auf die
+   * Scheibe; das Klopfen holt einen zurueck. Dazu, wo es geht (Android),
+   * ein kurzes Vibrieren - iOS kennt das im Browser nicht, da bleibt der Ton.
+   */
+  var zuletztGeklopft = 0;
+  function schlag(t, freq) {
+    var o = ctx.createOscillator();
+    var g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    o.frequency.exponentialRampToValueAtTime(freq * 0.55, t + 0.07);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.8, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(t); o.stop(t + 0.12);
+    var puffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.02), ctx.sampleRate);
+    var d = puffer.getChannelData(0);
+    for (var i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+    var r = ctx.createBufferSource();
+    r.buffer = puffer;
+    var rg = ctx.createGain();
+    rg.gain.value = 0.3;
+    r.connect(rg); rg.connect(ctx.destination);
+    r.start(t);
+  }
+  function spieleKlopfen() {
+    try { if (navigator.vibrate) navigator.vibrate([70, 70, 70]); } catch (e) { /* egal */ }
+    if (!ctx || ctx.state !== 'running') return;
+    var t = ctx.currentTime;
+    if (t - zuletztGeklopft < 0.3) return;
+    zuletztGeklopft = t;
+    schlag(t, 240);
+    schlag(t + 0.17, 210);
+  }
+
   document.addEventListener('pointerdown', weckauf, { capture: true, passive: true });
   document.addEventListener('keydown', weckauf, true);
 
-  window.DartSound = { pomp: spielePomp, klick: spieleKlick };
+  window.DartSound = { pomp: spielePomp, klick: spieleKlick, klopfen: spieleKlopfen };
 })();

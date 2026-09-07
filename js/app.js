@@ -125,6 +125,8 @@
   /* Klaenge sind optional - ohne js/sound.js bleibt alles stumm. */
   function pomp() { if (window.DartSound) window.DartSound.pomp(); }
   function klick() { if (window.DartSound) window.DartSound.klick(); }
+  /* Zwei Schlaege: im Online-Spiel hat der andere gerade eingetragen. */
+  function klopfen() { UI.klopfen = Date.now(); if (window.DartSound && window.DartSound.klopfen) window.DartSound.klopfen(); }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
   function uid() { return Math.random().toString(36).slice(2, 9); }
   function sum(arr, f) { var t = 0; for (var i = 0; i < arr.length; i++) t += f(arr[i]); return t; }
@@ -747,6 +749,10 @@
     /* Halbfertige Dialoge beziehen sich auf den alten Stand. */
     if (UI.overlay && (UI.overlay.type === 'checkout-darts' || UI.overlay.type === 'edit-visit')) UI.overlay = null;
     var wer = spiel.geaendertVonName || 'Dein Mitspieler';
+    /* Der andere hat eingetragen: klopfen, damit man vom Board zum Handy
+       schaut. Eigene Staende (Konflikt-Antwort auf den eigenen PUT, zweites
+       eigenes Geraet) klopfen nicht. */
+    if (spiel.geaendertVon && spiel.geaendertVon !== liveNutzer()) klopfen();
 
     if (spiel.status === 'zu') {
       /* Der andere hat gespeichert oder abgebrochen. Gespeichert wird hier
