@@ -1308,6 +1308,9 @@ await page.evaluate(() => {
 });
 await page.locator('[data-action="set-mode"][data-value="quick"]').click();
 check('teilt sich die Einstellungen mit dem Turnier', await visible('#settings-501'));
+/* Ohne Server gibt es kein Konto und damit niemanden, mit dem man online
+   spielen koennte -- die Karte bleibt weg. */
+check('ohne Server keine Online-Einstellung', !(await visible('#settings-online')));
 check('kein Legs-Feld – es gibt nur eines', !(await visible('#setting-bestof')));
 await page.locator('#settings-501 [data-setting="start"] button[data-value="301"]').click();
 /* Für diesen Durchlauf bleibt die Punkte-Eingabe an: sonst schaltet die App

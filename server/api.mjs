@@ -802,6 +802,202 @@ export function createApi(db, config) {
     sendJson(res, 200, { ok: true, seq });
   }
 
+  /* ---------- Online-Spiel ---------- */
+  /*
+   * Ein Schnelles Spiel oder Finisher an zwei Orten. Der Spielstand liegt
+   * als Ganzes hier; jede Aenderung ersetzt ihn komplett und zaehlt `seq`
+   * hoch. Wer schreibt, nennt die Version, die er kennt -- stimmt sie nicht
+   * mehr, war der andere schneller: 409 samt aktuellem Stand, und der Client
+   * uebernimmt den statt ihn zu ueberschreiben.
+   *
+   * Kein Dart-Wissen: `state` ist das JSON, das der Client als S.game
+   * fuehrt. Der Server prueft nur Groesse, Mitgliedschaft und Version.
+   */
+  const LIVE_KINDS = new Set(['quick', 'finisher', 'cricket', 'rtw']);
+  const LIVE_MAX_STATE = 256 * 1024;
+  const LIVE_FRIST = 24 * 3600e3;
+
+  function verlangeLive(id) {
+    const g = db.prepare('SELECT * FROM live_games WHERE id = ?').get(id);
+    if (!g) throw new HttpFehler(404, 'Dieses Online-Spiel gibt es nicht.');
+    return g;
+  }
+
+  function verlangeLiveTeilnahme(g, u) {
+    const da = db.prepare('SELECT 1 FROM live_game_players WHERE game_id = ? AND user_id = ?').get(g.id, u.id);
+    if (!da) throw new HttpFehler(403, 'Du spielst in diesem Spiel nicht mit.');
+  }
+
+  function liveState(wert, id, kind) {
+    if (!wert || typeof wert !== 'object' || Array.isArray(wert)) throw new HttpFehler(400, 'Der Spielstand fehlt.');
+    // Der Stand muss zu diesem Spiel gehoeren -- sonst koennte ein Mitspieler
+    // dem anderen ein anderes Spiel (oder eine andere Spielart) unterschieben.
+    if (wert.id !== id || wert.kind !== kind) throw new HttpFehler(400, 'Der Spielstand passt nicht zu diesem Spiel.');
+    const text = JSON.stringify(wert);
+    if (text.length > LIVE_MAX_STATE) throw new HttpFehler(413, 'Der Spielstand ist zu gross.');
+    return text;
+  }
+
+  /* Ein Spiel schliessen -- mit Versionssprung, damit jedes Geraet das Ende
+     beim naechsten Nachfragen auch bekommt. Optional mit Schlussstand. */
+  function liveSchliessen(id, userId, state) {
+    const s = zaehler(db, 'live_seq');
+    const jetzt = new Date().toISOString();
+    if (state) {
+      db.prepare("UPDATE live_games SET state = ?, status = 'zu', seq = ?, updated_by = ?, ended_at = ?, updated_at = ? WHERE id = ?")
+        .run(state, s, userId, jetzt, jetzt, id);
+    } else {
+      db.prepare("UPDATE live_games SET status = 'zu', seq = ?, updated_by = ?, ended_at = ?, updated_at = ? WHERE id = ?")
+        .run(s, userId, jetzt, jetzt, id);
+    }
+  }
+
+  /* Antwort. Der Stand selbst kommt nur mit, wenn er neuer ist als das, was
+     der Client schon kennt -- der Takt fragt alle paar Sekunden, und meistens
+     hat sich nichts getan. */
+  function liveAntwort(g, seit) {
+    namenLaden();
+    const spieler = db.prepare('SELECT user_id FROM live_game_players WHERE game_id = ?').all(g.id)
+      .map((r) => r.user_id);
+    const neu = g.seq > (Number(seit) || 0);
+    const antwort = {
+      id: g.id,
+      kind: g.kind,
+      status: g.status,
+      seq: g.seq,
+      angelegtVon: g.created_by,
+      angelegtVonName: namen.get(g.created_by) || null,
+      geaendertVon: g.updated_by,
+      geaendertVonName: g.updated_by ? (namen.get(g.updated_by) || null) : null,
+      spieler,
+      spielerNamen: spieler.map((id) => namen.get(id) || null),
+      at: g.created_at
+    };
+    if (neu) antwort.state = JSON.parse(g.state);
+    return antwort;
+  }
+
+  async function liveAnlegen(req, res) {
+    pruefeHerkunft(req);
+    const u = verlangeNutzer(req);
+    const body = await leseJson(req);
+    const id = turnierId(body.id);
+    if (!LIVE_KINDS.has(body.kind)) throw new HttpFehler(400, 'Diese Spielart geht nicht online.');
+    const state = liveState(body.state, id, body.kind);
+
+    // Schon da? Dann war das ein zweiter Versuch (Neuladen, Warteschlange).
+    const da = db.prepare('SELECT * FROM live_games WHERE id = ?').get(id);
+    if (da) {
+      verlangeLiveTeilnahme(da, u);
+      return sendJson(res, 200, { spiel: liveAntwort(da, 0), schonDa: true });
+    }
+
+    const mitspieler = Array.isArray(body.players) ? body.players : [];
+    const konten = [];
+    for (const p of mitspieler) {
+      const treffer = db.prepare("SELECT id FROM users WHERE id = ? AND status = 'aktiv'").get(String(p));
+      if (treffer && !konten.includes(treffer.id)) konten.push(treffer.id);
+    }
+    if (!konten.includes(u.id)) konten.push(u.id);
+    if (konten.length < 2) throw new HttpFehler(400, 'Online braucht mindestens einen Mitspieler mit Konto.');
+
+    const jetzt = new Date().toISOString();
+    transaktion(db, function () {
+      // Ein Mensch spielt ein Online-Spiel zur Zeit: was er selbst noch offen
+      // hat, ist damit vorbei (liegengeblieben oder "Nochmal spielen").
+      for (const alt of db.prepare("SELECT id FROM live_games WHERE created_by = ? AND status = 'offen'").all(u.id)) {
+        liveSchliessen(alt.id, u.id, null);
+      }
+      const s = zaehler(db, 'live_seq');
+      db.prepare(
+        'INSERT INTO live_games (id, kind, state, seq, created_by, updated_by, created_at, updated_at)' +
+          ' VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(id, body.kind, state, s, u.id, u.id, jetzt, jetzt);
+      const ins = db.prepare('INSERT INTO live_game_players (game_id, user_id) VALUES (?, ?)');
+      for (const k of konten) ins.run(id, k);
+    });
+    sendJson(res, 201, { spiel: liveAntwort(verlangeLive(id), 0) });
+  }
+
+  /* Alle offenen Online-Spiele, an denen ich beteiligt bin. */
+  function liveListe(req, res) {
+    const u = verlangeNutzer(req);
+    const zeilen = db
+      .prepare(
+        "SELECT g.* FROM live_games g JOIN live_game_players p ON p.game_id = g.id" +
+          " WHERE p.user_id = ? AND g.status = 'offen' ORDER BY g.created_at DESC LIMIT 10"
+      )
+      .all(u.id);
+    // Ohne Stand: die Liste wird im Setup alle paar Sekunden geholt, der
+    // Stand kommt erst beim Mitspielen (GET /api/live/:id).
+    sendJson(res, 200, { spiele: zeilen.map((g) => liveAntwort(g, g.seq)) });
+  }
+
+  function liveHolen(req, res, id, url) {
+    const u = verlangeNutzer(req);
+    const g = verlangeLive(turnierId(id));
+    verlangeLiveTeilnahme(g, u);
+    sendJson(res, 200, { spiel: liveAntwort(g, url.searchParams.get('since')) });
+  }
+
+  /* Neuer Stand. Nur gegen die bekannte Version -- sonst 409 mit dem Stand,
+     der inzwischen gilt. */
+  async function liveSchreiben(req, res, id) {
+    pruefeHerkunft(req);
+    const u = verlangeNutzer(req);
+    const g = verlangeLive(turnierId(id));
+    verlangeLiveTeilnahme(g, u);
+    if (g.status !== 'offen') throw new HttpFehler(409, 'Dieses Spiel ist beendet.');
+    const body = await leseJson(req);
+    const state = liveState(body.state, g.id, g.kind);
+    const basis = Number(body.seq);
+    if (!Number.isFinite(basis)) throw new HttpFehler(400, 'Die Version fehlt.');
+    if (basis !== g.seq) {
+      namenLaden();
+      return sendJson(res, 409, {
+        fehler: (namen.get(g.updated_by) || 'Jemand') + ' war schneller.',
+        spiel: liveAntwort(g, 0)
+      });
+    }
+    transaktion(db, function () {
+      const s = zaehler(db, 'live_seq');
+      db.prepare('UPDATE live_games SET state = ?, seq = ?, updated_by = ?, updated_at = ? WHERE id = ?')
+        .run(state, s, u.id, new Date().toISOString(), g.id);
+    });
+    sendJson(res, 200, { spiel: liveAntwort(verlangeLive(g.id), 0) });
+  }
+
+  /* Zu -- gespeichert oder abgebrochen. Der letzte Stand bleibt abrufbar,
+     damit das andere Geraet das Ende noch mitbekommt. */
+  async function liveEnde(req, res, id) {
+    pruefeHerkunft(req);
+    const u = verlangeNutzer(req);
+    const g = verlangeLive(turnierId(id));
+    verlangeLiveTeilnahme(g, u);
+    // Der Schlussstand darf mitkommen -- in einem Rutsch, damit "Speichern"
+    // nicht mit dem letzten PUT um die Wette laeuft.
+    const body = req.headers['content-length'] && req.headers['content-length'] !== '0' ? await leseJson(req) : {};
+    const state = body && body.state ? liveState(body.state, g.id, g.kind) : null;
+    if (g.status === 'offen') {
+      transaktion(db, function () { liveSchliessen(g.id, u.id, state); });
+    }
+    sendJson(res, 200, { spiel: liveAntwort(verlangeLive(g.id), 0) });
+  }
+
+  /* Vergessene Online-Spiele schliessen sich nach einem Tag von selbst. */
+  function liveAufraeumen() {
+    const grenze = new Date(Date.now() - LIVE_FRIST).toISOString();
+    transaktion(db, function () {
+      for (const g of db.prepare("SELECT id, created_by FROM live_games WHERE status = 'offen' AND updated_at < ?").all(grenze)) {
+        liveSchliessen(g.id, g.created_by, null);
+      }
+      // Geschlossene Spiele braucht nach einer Woche niemand mehr: der
+      // Archiv-Eintrag liegt laengst unter /api/games.
+      const weg = new Date(Date.now() - 7 * LIVE_FRIST).toISOString();
+      db.prepare("DELETE FROM live_games WHERE status = 'zu' AND updated_at < ?").run(weg);
+    });
+  }
+
   /* ---------- Verteiler ---------- */
 
   const TID = '([A-Za-z0-9_-]{4,64})';
@@ -836,10 +1032,16 @@ export function createApi(db, config) {
     ['POST', new RegExp('^\\/api\\/tournaments\\/' + TID + '\\/ende$'), turnierBeenden],
     ['POST', new RegExp('^\\/api\\/tournaments\\/' + TID + '\\/matches\\/' + TID + '\\/claim$'), partieBeanspruchen],
     ['POST', new RegExp('^\\/api\\/tournaments\\/' + TID + '\\/matches\\/' + TID + '\\/frei$'), partieFreigeben],
-    ['PUT', new RegExp('^\\/api\\/tournaments\\/' + TID + '\\/matches\\/' + TID + '$'), partieErgebnis]
+    ['PUT', new RegExp('^\\/api\\/tournaments\\/' + TID + '\\/matches\\/' + TID + '$'), partieErgebnis],
+
+    ['POST', /^\/api\/live$/, liveAnlegen],
+    ['GET', /^\/api\/live$/, liveListe],
+    ['GET', new RegExp('^\\/api\\/live\\/' + TID + '$'), liveHolen],
+    ['PUT', new RegExp('^\\/api\\/live\\/' + TID + '$'), liveSchreiben],
+    ['POST', new RegExp('^\\/api\\/live\\/' + TID + '\\/ende$'), liveEnde]
   ];
 
-  return async function handleApi(req, res, url) {
+  async function handleApi(req, res, url) {
     if (url.pathname === '/api/ping') return sendJson(res, 200, { ok: true });
 
     let pfadPasst = false;
@@ -861,5 +1063,7 @@ export function createApi(db, config) {
     }
     if (pfadPasst) return sendFehler(res, 405, 'Diese Methode ist hier nicht vorgesehen.');
     sendFehler(res, 404, 'Diesen Weg gibt es nicht.');
-  };
+  }
+  handleApi.aufraeumen = liveAufraeumen;
+  return handleApi;
 }

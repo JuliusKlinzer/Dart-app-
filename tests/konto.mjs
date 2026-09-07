@@ -859,11 +859,196 @@ async function main() {
       String(tobiCar2[tobiId] && tobiCar2[tobiId].cricketGames));
 
     /*
+     * Online-Spiel: Julius und Tobi stehen an zwei Scheiben und
+     * telefonieren. Julius macht ein Schnelles Spiel online auf, Tobi
+     * sieht es im Setup und steigt ein. Beide sehen jeden Wurf, beide
+     * tragen ein -- und wer gegen einen veralteten Stand schreibt, bekommt
+     * den gueltigen zurueck statt ihn zu ueberschreiben.
+     */
+    group('Online-Spiel: Schnelles Spiel an zwei Orten');
+    await julius.page.evaluate((tid) => {
+      const D = window.__dart, S = D.state();
+      S.game = null; S.matches = []; S.tour = null; S.current = null;
+      S.lineup = [window.DartKonto.nutzer().id, tid];
+      S.settings.start = 301; S.settings.dartModeFrom = 0;
+      D.setScreen('setup');
+    }, tobiId);
+    await julius.page.locator('[data-action="set-mode"][data-value="quick"]').click();
+    check('die Online-Einstellung ist im Schnellen Spiel sichtbar',
+      await julius.page.locator('#settings-online').isVisible());
+    await julius.page.locator('[data-action="set-mode"][data-value="501"]').click();
+    check('im Turnier gibt es sie nicht',
+      await julius.page.locator('#settings-online').isHidden());
+    await julius.page.locator('[data-action="set-mode"][data-value="quick"]').click();
+    await julius.page.locator('#settings-online [data-value="1"]').click();
+    check('der Hinweis nennt, bei wem das Spiel auftauchen wird',
+      (await julius.page.locator('#online-hint').innerText()).includes('Tobi'));
+    await julius.page.locator('[data-action="start-game"]').click();
+    await julius.page.waitForTimeout(900);
+    check('Julius ist im Bull-Off', await julius.page.locator('#screen-bulloff').isVisible());
+    const liveSid = await julius.page.evaluate(() => {
+      const g = window.__dart.state().game;
+      return g && g.online && !g.online.wartet ? g.online.sid : null;
+    });
+    check('das Spiel liegt beim Server', !!liveSid);
+
+    /* Tobi ist im Setup -- der Takt dort findet das Spiel von allein. */
+    await tobi.page.evaluate(() => {
+      const D = window.__dart, S = D.state();
+      S.game = null; S.matches = []; S.tour = null; S.current = null;
+      D.setScreen('setup');
+    });
+    await tobi.page.evaluate(() => window.__dart.turnierListeAktualisieren());
+    await tobi.page.waitForTimeout(800);
+    check('Tobi sieht das Online-Spiel ohne Einladung',
+      await tobi.page.locator('#beitreten-box').isVisible());
+    const beitrittText = await tobi.page.locator('#beitreten-liste').innerText();
+    check('als Schnelles Spiel von Julius',
+      beitrittText.includes('Schnelles Spiel') && beitrittText.includes('Julius'), beitrittText);
+    await tobi.page.locator('[data-action="live-beitreten"]').click();
+    await tobi.page.waitForTimeout(400);
+    check('nach dem Mitspielen haengt Tobi am selben Spiel',
+      await tobi.page.evaluate((id) => {
+        const g = window.__dart.state().game;
+        return !!(g && g.online && g.online.sid === id);
+      }, liveSid));
+    check('und steht wie Julius im Bull-Off', await tobi.page.locator('#screen-bulloff').isVisible());
+
+    /* Julius wirft aus: er faengt an. Bei Tobi springt der Bildschirm um. */
+    await julius.page.locator('#bulloff-buttons [data-action="pick-starter"]').first().click();
+    await julius.page.waitForTimeout(700);
+    await tobi.page.evaluate(() => window.DartSync.live.abgleich().then((neu) => { if (neu) window.__dart.render(); }));
+    await tobi.page.waitForTimeout(300);
+    check('Tobi landet im Spiel, sobald Julius den Anwurf gewaehlt hat',
+      await tobi.page.locator('#screen-game').isVisible());
+    check('die Kopfzeile sagt, mit wem es online laeuft',
+      (await tobi.page.locator('#game-match-label').innerText()).includes('online'),
+      await tobi.page.locator('#game-match-label').innerText());
+
+    /* Beide tippen Gesamtpunkte -- von frueheren Gruppen kann noch die
+       Einzel-Dart-Eingabe eingestellt sein. */
+    await julius.page.locator('#mode-toggle button[data-mode="total"]').click();
+    await tobi.page.locator('#mode-toggle button[data-mode="total"]').click();
+    await tobi.page.evaluate(() => { window.__dart.state().settings.dartModeFrom = 0; });
+
+    /* Julius traegt 60 ein -- Tobi sieht den Rest. */
+    await typeScoreAuf(julius.page, 60);
+    await julius.page.waitForTimeout(700);
+    await tobi.page.evaluate(() => window.DartSync.live.abgleich().then((neu) => { if (neu) window.__dart.render(); }));
+    await tobi.page.waitForTimeout(300);
+    const tobiSieht = await tobi.page.evaluate(() => {
+      const D = window.__dart, m = D.currentMatch(), leg = D.activeLeg(m);
+      return leg.visits.length === 1 && leg.visits[0].s === 60 && D.remainingIn(leg, m.p[0]) === 241;
+    });
+    check('Tobi sieht Julius’ Aufnahme und den Rest 241', tobiSieht);
+
+    /* Tobi traegt fuer sich 100 ein -- Julius sieht es. */
+    await typeScoreAuf(tobi.page, 100);
+    await tobi.page.waitForTimeout(700);
+    await julius.page.evaluate(() => window.DartSync.live.abgleich().then((neu) => { if (neu) window.__dart.render(); }));
+    await julius.page.waitForTimeout(300);
+    const juliusSieht = await julius.page.evaluate(() => {
+      const D = window.__dart, m = D.currentMatch(), leg = D.activeLeg(m);
+      return leg.visits.length === 2 && leg.visits[1].s === 100 && D.remainingIn(leg, m.p[1]) === 201;
+    });
+    check('Julius sieht Tobis Aufnahme und dessen Rest 201', juliusSieht);
+    check('bei Julius ist wieder Julius am Wurf', await julius.page.evaluate(() => {
+      const D = window.__dart, m = D.currentMatch();
+      return D.activePlayer(D.activeLeg(m), m) === m.p[0];
+    }));
+
+    /* Wer gegen einen alten Stand schreibt, verliert nichts Fremdes: Tobi
+       tippt mit einer veralteten Version, der Server sagt "Julius war
+       schneller", und Tobi uebernimmt den gueltigen Stand. */
+    await typeScoreAuf(julius.page, 41);            // Julius: 241 -> 200
+    await julius.page.waitForTimeout(700);
+    await tobi.page.evaluate(() => {
+      // Tobi hat den letzten Stand noch nicht geholt und traegt trotzdem ein.
+      const D = window.__dart, S = D.state();
+      S.game.legs[0].visits.push({ p: S.game.p[1], s: 26, d: 3, b: false, c: false, o: 0 });
+      D.save();
+    });
+    await tobi.page.waitForTimeout(900);
+    const tobiNachKonflikt = await tobi.page.evaluate(() => {
+      const D = window.__dart, m = D.currentMatch(), leg = D.activeLeg(m);
+      return { n: leg.visits.length, letzte: leg.visits[leg.visits.length - 1].s, overlay: D.ui().overlay && D.ui().overlay.type };
+    });
+    check('der veraltete Eintrag wird nicht uebernommen, der gueltige Stand schon',
+      tobiNachKonflikt.n === 3 && tobiNachKonflikt.letzte === 41, JSON.stringify(tobiNachKonflikt));
+    check('und Tobi bekommt gesagt, dass Julius schneller war',
+      tobiNachKonflikt.overlay === 'hinweis');
+    await tobi.page.locator('[data-action="ov-hinweis-zu"]').click();
+
+    /* Zu Ende: Tobi checkt 201 nicht, Julius macht die 200 mit 180 und D10. */
+    await typeScoreAuf(tobi.page, 60);              // Tobi: 201 -> 141
+    await tobi.page.waitForTimeout(700);
+    await julius.page.evaluate(() => window.DartSync.live.abgleich().then((neu) => { if (neu) window.__dart.render(); }));
+    await julius.page.waitForTimeout(300);
+    await typeScoreAuf(julius.page, 180);           // Julius: 200 -> 20
+    await julius.page.waitForTimeout(700);
+    await tobi.page.evaluate(() => window.DartSync.live.abgleich().then((neu) => { if (neu) window.__dart.render(); }));
+    await tobi.page.waitForTimeout(300);
+    await typeScoreAuf(tobi.page, 100);             // Tobi: 141 -> 41
+    await tobi.page.waitForTimeout(700);
+    await julius.page.evaluate(() => window.DartSync.live.abgleich().then((neu) => { if (neu) window.__dart.render(); }));
+    await julius.page.waitForTimeout(300);
+    await julius.page.locator('#mode-toggle button[data-mode="total"]').click();
+    await typeScoreAuf(julius.page, 20);
+    if (await julius.page.locator('#overlay-card [data-action="co-darts"]').count()) {
+      await julius.page.locator('#overlay-card [data-action="co-darts"]').first().click();
+    }
+    await julius.page.waitForTimeout(900);
+    check('Julius hat ausgemacht', await julius.page.evaluate(() => window.__dart.state().game.done));
+    await tobi.page.evaluate(() => window.DartSync.live.abgleich().then((neu) => { if (neu) window.__dart.render(); }));
+    await tobi.page.waitForTimeout(300);
+    check('Tobi sieht das Spielende samt Glueckwunsch an Julius',
+      await tobi.page.evaluate(() => {
+        const D = window.__dart, o = D.ui().overlay;
+        return D.state().game.done && !!o && o.type === 'game-done';
+      }));
+
+    /* Julius speichert. Bei Tobi schliesst sich das Spiel von selbst und
+       liegt genauso in der Statistik -- als ein Spiel, nicht als zwei. */
+    await julius.page.locator('#overlay-card [data-action="open-summary"]').click();
+    await julius.page.locator('#summary-actions [data-action="finish-game"]').click();
+    await julius.page.waitForTimeout(600);
+    await tobi.page.evaluate(() => window.DartSync.live.abgleich().then((neu) => { if (neu) window.__dart.render(); }));
+    await tobi.page.waitForTimeout(400);
+    check('bei Tobi ist das Spiel danach zu und gespeichert',
+      await tobi.page.evaluate((id) => {
+        const S = window.__dart.state();
+        return !S.game && S.history.some((h) => h.id === id);
+      }, liveSid));
+    check('Julius hat denselben Eintrag', await julius.page.evaluate((id) =>
+      window.__dart.state().history.some((h) => h.id === id), liveSid));
+    await tobi.page.evaluate(() => window.DartSync.jetzt());
+    await julius.page.evaluate(() => window.DartSync.jetzt());
+    await julius.page.waitForTimeout(1500);
+    check('und in der Historie steht es genau einmal', await julius.page.evaluate((id) =>
+      window.__dart.state().history.filter((h) => h.id === id).length === 1, liveSid));
+    check('Julius hat den Sieg', await julius.page.evaluate((jid) =>
+      window.__dart.career()[jid].won >= 1, juliusId));
+    if (await tobi.page.locator('[data-action="ov-hinweis-zu"]').count()) {
+      await tobi.page.locator('[data-action="ov-hinweis-zu"]').click();
+    }
+
+    /*
      * Kamera-Kopplung: Julius' iPad schaltet in den Kamera-Modus, Tobis
      * Geraet spielt das iPhone am Stativ (Fern-Eingabe, spaeter echte
      * Kamera-Erkennung). Zwei echte Browser-Kontexte, echter Server,
      * echtes SSE -- genau der Weg eines Spielabends.
+     *
+     * Die Kamera-Schicht ist zurzeit abgeschaltet (js/kamera.js wird in
+     * index.html nicht geladen). Solange das so ist, prueft der Test nur,
+     * dass sie wirklich weg ist; kommt sie zurueck, laeuft der Rest wieder.
      */
+    const kameraAn = await julius.page.evaluate(() => !!window.DartKamera);
+    if (!kameraAn) {
+      group('Kamera-Kopplung ist abgeschaltet');
+      check('kein Kamera-Knopf', await julius.page.locator('#mode-toggle [data-mode="kamera"]').isHidden());
+      check('kein Koppeln-Link im Setup', (await julius.page.locator('[data-kamera="linse-auf"]').count()) === 0);
+    }
+    if (kameraAn) {
     group('Kamera-Kopplung: iPhone als Fern-Eingabe');
     await julius.page.evaluate(() => {
       const D = window.__dart, S = D.state();
@@ -1073,6 +1258,7 @@ async function main() {
       S.game = null; S.matches = []; S.tour = null; S.current = null;
       D.setScreen('setup');
     });
+    }
 
     group('Fehlerfreiheit');
     const alleFehler = julius.fehlerLog.concat(tobi.fehlerLog, lenas.fehlerLog);

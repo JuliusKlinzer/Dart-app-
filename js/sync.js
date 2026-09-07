@@ -434,6 +434,130 @@
     }, TURNIER_TAKT);
   }
 
+  /* ================= Online-Spiel ================= */
+  /*
+   * Ein Schnelles Spiel oder Finisher an zwei Orten: beide stehen an ihrer
+   * Scheibe, telefonieren, und statt dass einer blind mitschreibt, liegt
+   * der Spielstand auf dem Server. Beide sehen ihn, beide tragen ein.
+   *
+   * Der Stand wandert als Ganzes (S.game ohne das online-Feld). Jede
+   * Aenderung wird gegen die bekannte Version geschrieben; war der andere
+   * schneller, gibt der Server 409 samt neuem Stand -- den uebernimmt
+   * app.js dann, statt ihn zu ueberschreiben. Gerechnet wird weiterhin nur
+   * im Client, der Server verwahrt bloss.
+   */
+  var LIVE_TAKT = 2500;
+  var liveTimer = null;
+  var liveSchreibt = null;   // laufender PUT, damit nicht zwei ueberholen
+  var liveDran = false;      // waehrend des PUT kam schon die naechste Aenderung
+  var liveStoerung = false;  // letzter Ruf ging schief (kein Netz, Server weg)
+
+  function liveRuf(methode, pfad, body) {
+    if (!window.DartKonto || !nutzer) return Promise.reject(new Error('Nicht angemeldet.'));
+    return window.DartKonto.ruf(methode, '/api/live' + pfad, body);
+  }
+
+  /* Offene Online-Spiele, an denen ich beteiligt bin – für das Setup. */
+  function liveOffen() {
+    if (!nutzer) return Promise.resolve([]);
+    return liveRuf('GET', '').then(function (d) { return d.spiele || []; })
+      .catch(function () { return []; });
+  }
+
+  function liveAnlegen(id, kind, state, spieler) {
+    return liveRuf('POST', '', { id: id, kind: kind, state: state, players: spieler })
+      .then(function (d) { return d.spiel; });
+  }
+
+  function liveHolen(id, seit) {
+    return liveRuf('GET', '/' + id + '?since=' + (seit || 0)).then(function (d) { return d.spiel; });
+  }
+
+  /*
+   * Eigenen Stand hochschieben. app.js ruft das nach jeder Aenderung; hier
+   * wird nur dafuer gesorgt, dass immer genau ein PUT unterwegs ist und der
+   * juengste Stand als letzter ankommt.
+   */
+  function liveSchreiben() {
+    var g = D.state().game;
+    if (!g || !g.online || !nutzer) return Promise.resolve(false);
+    if (liveSchreibt) { liveDran = true; return liveSchreibt; }
+    var stand = D.liveStand();
+    if (!stand) return Promise.resolve(false);
+    liveSchreibt = liveRuf('PUT', '/' + g.online.sid, { state: stand.state, seq: stand.seq })
+      .then(function (d) {
+        liveStoerung = false;
+        D.liveGeschrieben(d.spiel, stand.text);
+        return true;
+      }, function (e) {
+        if (e && e.status === 409 && e.daten && e.daten.spiel) {
+          // Der andere war schneller: sein Stand gilt, meiner ist hinfaellig.
+          liveStoerung = false;
+          if (D.liveUebernehmen(e.daten.spiel, true)) D.render();
+          return false;
+        }
+        if (e && e.status === 409) {
+          // Beendet: der naechste Takt holt den Schlussstand.
+          liveStoerung = false;
+          return false;
+        }
+        liveStoerung = true;
+        return false;
+      })
+      .then(function (erg) {
+        liveSchreibt = null;
+        if (liveDran) { liveDran = false; return liveSchreiben(); }
+        return erg;
+      });
+    return liveSchreibt;
+  }
+
+  /* Abgleich: gibt es beim Server einen neueren Stand, uebernimmt ihn app.js. */
+  function liveAbgleich() {
+    var g = D.state().game;
+    if (!g || !g.online || !nutzer) return Promise.resolve(false);
+    if (liveSchreibt) return Promise.resolve(false);
+    return liveHolen(g.online.sid, g.online.seq || 0).then(function (spiel) {
+      liveStoerung = false;
+      return D.liveUebernehmen(spiel, false);
+    }).catch(function (e) {
+      // 404/403: das Spiel ist weg oder ich gehoere nicht mehr dazu -- lokal
+      // weiterspielen, aber nicht mehr nachfragen.
+      if (e && (e.status === 404 || e.status === 403)) { D.liveGetrennt(); return true; }
+      liveStoerung = true;
+      return false;
+    });
+  }
+
+  /* Zu -- mit Schlussstand in einem Rutsch, nachdem ein laufender PUT
+     durch ist. So kommt "Speichern" nie vor dem letzten Wurf an. */
+  function liveEnde(id, stand) {
+    if (!nutzer || !id) return Promise.resolve();
+    var vorher = liveSchreibt || Promise.resolve();
+    return vorher.catch(function () {}).then(function () {
+      return liveRuf('POST', '/' + id + '/ende', stand ? { state: stand.state } : {});
+    }).catch(function () {});
+  }
+
+  /* Nur takten, solange ein Online-Spiel laeuft und man es anschaut. */
+  function liveTakt(an) {
+    if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
+    if (!an) return;
+    liveTimer = setInterval(function () {
+      if (document.hidden) return;
+      var g = D.state().game;
+      if (!g || !g.online) return;
+      // Erst Eigenes loswerden, dann nachsehen, was der andere gemacht hat.
+      var p = D.liveStand() ? liveSchreiben() : Promise.resolve(false);
+      p.then(function () { return liveAbgleich(); })
+        .then(function (neu) { if (neu) D.render(); });
+    }, LIVE_TAKT);
+  }
+
+  function liveStatus() {
+    return { stoerung: liveStoerung, schreibt: !!liveSchreibt };
+  }
+
   /* ================= Liga-Zusagen ================= */
   /*
    * Wer ist beim Spieltag dabei? Die Termine kennt der Client (LIGA in
@@ -520,6 +644,16 @@
         ergebnis: turnierErgebnis,
         ende: turnierEnde,
         takt: turnierTakt
+      },
+      live: {
+        offen: liveOffen,
+        anlegen: liveAnlegen,
+        holen: liveHolen,
+        schreiben: liveSchreiben,
+        abgleich: liveAbgleich,
+        ende: liveEnde,
+        takt: liveTakt,
+        status: liveStatus
       }
     };
 

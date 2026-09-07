@@ -44,6 +44,7 @@
         if (!res.ok) {
           var e = new Error(daten.fehler || 'Der Server hat die Anfrage abgelehnt.');
           e.status = res.status;
+          e.daten = daten;   // z. B. der aktuelle Stand bei 409 im Online-Spiel
           throw e;
         }
         return daten;

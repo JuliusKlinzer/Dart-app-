@@ -152,6 +152,7 @@ const putzen = setInterval(function () {
     sweepExpired(db);
     aufraeumen();
     relayAufraeumen();
+    handleApi.aufraeumen();
   } catch (e) {
     console.error('Aufraeumen fehlgeschlagen:', e);
   }

@@ -626,6 +626,79 @@ async function main() {
     r = await fetch(BASIS + '/api/kamera/raum/' + RAUM + '/strom');
     gleich(r.status, 400, 'ohne Rolle gibt es keinen Strom');
 
+    console.log('\nOnline-Spiel');
+    /* Zwei Freunde an zwei Scheiben: der Spielstand liegt als Ganzes beim
+       Server, beide sehen ihn, beide schreiben -- gegen die Version, die
+       sie kennen. */
+    const stand1 = { id: 'live1', kind: 'quick', p: [julius_id, tobi_id], legs: [], started: false };
+    r = await julius.ruf('POST', '/api/live', { id: 'live0', kind: 'quick', state: Object.assign({}, stand1, { id: 'live0' }), players: [julius_id, tobi_id] });
+    gleich(r.status, 201, 'ein liegengebliebenes Online-Spiel von Julius');
+    r = await julius.ruf('POST', '/api/live', { id: 'live1', kind: 'quick', state: stand1, players: [julius_id, tobi_id] });
+    gleich(r.status, 201, 'Julius legt ein Online-Spiel an');
+    gleich(r.daten.spiel.seq > 0, true, 'es hat eine Versionsnummer');
+    gleich(r.daten.spiel.state.kind, 'quick', 'und den Stand, wie er hingeschickt wurde');
+    const liveSeq1 = r.daten.spiel.seq;
+    r = await julius.ruf('GET', '/api/live/live0');
+    gleich(r.daten.spiel.status, 'zu', 'das liegengebliebene ist damit zu -- ein Mensch, ein Online-Spiel');
+
+    r = await julius.ruf('POST', '/api/live', { id: 'live1', kind: 'quick', state: stand1, players: [julius_id] });
+    gleich(r.status, 200, 'ein zweiter Versuch mit derselben Kennung meckert nicht');
+    ok(r.daten.schonDa === true, 'sondern sagt, dass es das schon gibt');
+
+    r = await julius.ruf('POST', '/api/live', { id: 'live2', kind: 'quick', state: stand1, players: [] });
+    gleich(r.status, 400, 'ohne Mitspieler mit Konto gibt es kein Online-Spiel');
+    r = await julius.ruf('POST', '/api/live', { id: 'live3', kind: '501', state: stand1, players: [tobi_id] });
+    gleich(r.status, 400, 'ein Turnier geht nicht als Online-Spiel');
+    r = await julius.ruf('POST', '/api/live', { id: 'live4', kind: 'quick', state: stand1, players: [tobi_id] });
+    gleich(r.status, 400, 'ein Stand mit fremder Kennung wird abgelehnt');
+
+    r = await tobi.ruf('GET', '/api/live');
+    gleich(r.daten.spiele.length, 1, 'Tobi sieht das Spiel, ohne dass ihn jemand einladen muss');
+    ok(String(r.daten.spiele[0].angelegtVonName).startsWith('Julius'), 'mit dem Namen dessen, der es angelegt hat');
+    ok(r.daten.spiele[0].spielerNamen.includes('Tobi'), 'und den Namen der Mitspieler');
+    ok(r.daten.spiele[0].state === undefined, 'die Liste kommt ohne Stand -- den holt man beim Mitspielen');
+    r = await fremd.ruf('GET', '/api/live');
+    gleich(r.status, 401, 'ohne Anmeldung sieht niemand Online-Spiele');
+    r = await fremd.ruf('GET', '/api/live/live1');
+    gleich(r.status, 401, 'und abrufen geht auch nicht');
+
+    r = await tobi.ruf('GET', '/api/live/live1?since=' + liveSeq1);
+    gleich(r.status, 200, 'Tobi fragt nach Neuem seit seiner Version');
+    ok(r.daten.spiel.state === undefined, 'und bekommt keinen Stand, wenn es nichts Neues gibt');
+
+    const stand2 = Object.assign({}, stand1, { started: true, legs: [{ visits: [{ p: julius_id, s: 60, d: 3 }] }] });
+    r = await tobi.ruf('PUT', '/api/live/live1', { state: stand2, seq: liveSeq1 });
+    gleich(r.status, 200, 'Tobi traegt eine Aufnahme ein');
+    const liveSeq2 = r.daten.spiel.seq;
+    ok(liveSeq2 > liveSeq1, 'die Version steigt');
+    gleich(r.daten.spiel.geaendertVonName, 'Tobi', 'und der Server weiss, wer es war');
+
+    r = await julius.ruf('PUT', '/api/live/live1', { state: stand1, seq: liveSeq1 });
+    gleich(r.status, 409, 'Julius schreibt gegen die alte Version und wird abgewiesen');
+    ok(String(r.daten.fehler).includes('Tobi'), 'mit dem Namen dessen, der schneller war');
+    gleich(r.daten.spiel.state.legs[0].visits.length, 1, 'und bekommt den gueltigen Stand gleich mit');
+
+    r = await julius.ruf('GET', '/api/live/live1?since=' + liveSeq1);
+    gleich(r.daten.spiel.state.legs[0].visits[0].s, 60, 'beim Nachfragen kommt Tobis Aufnahme an');
+
+    r = await fremd.ruf('PUT', '/api/live/live1', { state: stand2, seq: liveSeq2 });
+    gleich(r.status, 401, 'ohne Anmeldung schreibt niemand mit');
+    r = await julius.rufOhneHeader('PUT', '/api/live/live1', { state: stand2, seq: liveSeq2 });
+    gleich(r.status, 403, 'und ohne App-Kennzeichen geht es auch nicht');
+
+    const stand3 = Object.assign({}, stand2, { done: true, winner: julius_id });
+    r = await julius.ruf('POST', '/api/live/live1/ende', { state: stand3 });
+    gleich(r.status, 200, 'Julius schliesst das Spiel mit dem Schlussstand');
+    gleich(r.daten.spiel.status, 'zu', 'es ist zu');
+    gleich(r.daten.spiel.state.done, true, 'und der Schlussstand ist der letzte');
+    r = await tobi.ruf('GET', '/api/live');
+    gleich(r.daten.spiele.length, 0, 'und steht bei Tobi nicht mehr zum Mitspielen');
+    r = await tobi.ruf('GET', '/api/live/live1?since=' + liveSeq2);
+    gleich(r.daten.spiel.status, 'zu', 'aber Tobi erfaehrt beim Nachfragen vom Ende');
+    ok(!!r.daten.spiel.state, 'samt Schlussstand');
+    r = await tobi.ruf('PUT', '/api/live/live1', { state: stand2, seq: r.daten.spiel.seq });
+    gleich(r.status, 409, 'in ein geschlossenes Spiel schreibt niemand mehr');
+
     console.log('\nStatische Dateien');
     let res = await fetch(BASIS + '/');
     gleich(res.status, 200, 'die App-Seite wird ausgeliefert');

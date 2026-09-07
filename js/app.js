@@ -162,6 +162,7 @@
       // stillschweigend Daten zu verlieren wäre das Schlimmste.
       if (!saveBroken) { saveBroken = true; renderSaveWarning(); }
     }
+    liveAnstossen();
   }
 
   function renderSaveWarning() {
@@ -191,6 +192,7 @@
       /* Vor der Wahl gab es nur Boost -- wer von damals kommt, behaelt das. */
       if (s.settings.rtwBoost === undefined) s.settings.rtwBoost = 1;
       if (FIN_TARGETS.indexOf(s.settings.finisherTo) < 0) s.settings.finisherTo = 5;
+      if (s.settings.online === undefined) s.settings.online = 0;
       s.profiles.forEach(function (p, i) { if (typeof p.hue !== 'number') p.hue = HUES[i % HUES.length]; });
       /* Liga-Stände aus der ersten Fassung (vor dem Bogen-Ausbau) kennen
          posH/posG, die Spielerlisten und die neuen Match-Felder nicht –
@@ -628,6 +630,220 @@
     save();
     render();
   }
+  /* ================= Online-Spiel ================= */
+  /*
+   * Ein Schnelles Spiel oder Finisher an zwei Orten: beide stehen an ihrer
+   * Scheibe, telefonieren, und der Spielstand liegt auf dem Server. Beide
+   * sehen ihn, beide tragen ein. S.game.online = {sid, seq, hash, mit}
+   * merkt, unter welcher Kennung das Spiel dort liegt, welche Version wir
+   * kennen und wessen Stand das ist. Alles andere am Spiel bleibt, wie es
+   * ist – der Server verwahrt bloss und rechnet nichts.
+   */
+  var LIVE_KINDS = { quick: 1, finisher: 1 };
+
+  function liveSpiel() { return S.game && S.game.online ? S.game : null; }
+
+  function liveNutzer() {
+    return window.DartKonto && window.DartKonto.nutzer() ? window.DartKonto.nutzer().id : null;
+  }
+
+  /* Online geht nur angemeldet, in den Spielarten dafuer und mit
+     mindestens einem Mitspieler, der ein Konto hat -- sonst gaebe es
+     niemanden, auf dessen Handy das Spiel auftauchen koennte. */
+  function liveMitspieler(ids) {
+    var ich = liveNutzer();
+    return (ids || []).filter(function (id) { return String(id).indexOf('u_') === 0 && id !== ich; });
+  }
+  function liveMoeglich(kind, ids) {
+    return !!(liveNutzer() && window.DartSync && window.DartSync.live && LIVE_KINDS[kind] && liveMitspieler(ids).length);
+  }
+
+  /* Der Stand, wie er zum Server geht: das Spiel ohne das online-Feld. */
+  function liveText(g) {
+    var k = {};
+    Object.keys(g).forEach(function (key) { if (key !== 'online') k[key] = g[key]; });
+    return JSON.stringify(k);
+  }
+  function liveHash(text) {
+    var h = 5381;
+    for (var i = 0; i < text.length; i++) h = ((h * 33) ^ text.charCodeAt(i)) >>> 0;
+    return h.toString(36) + ':' + text.length;
+  }
+
+  /* Was noch nicht beim Server ist -- oder null, wenn alles oben ist. */
+  function liveStand() {
+    var g = liveSpiel();
+    if (!g || g.online.wartet) return null;   // noch nicht beim Server angelegt
+    var text = liveText(g);
+    if (liveHash(text) === g.online.hash) return null;
+    return { state: JSON.parse(text), seq: g.online.seq || 0, text: text };
+  }
+
+  function liveGeschrieben(spiel, text) {
+    var g = liveSpiel();
+    if (!g || !spiel || spiel.id !== g.online.sid) return;
+    g.online.seq = spiel.seq;
+    g.online.hash = liveHash(text);
+    save();
+  }
+
+  /* Nach jeder Aenderung: kurz sammeln, dann hochschieben. Aus save()
+     gerufen, damit keine Stelle im Spiel vergessen werden kann. */
+  var liveTimer = null;
+  function liveAnstossen() {
+    if (!liveSpiel() || !window.DartSync || !window.DartSync.live) return;
+    if (liveTimer) return;
+    liveTimer = setTimeout(function () {
+      liveTimer = null;
+      if (liveStand()) window.DartSync.live.schreiben();
+    }, 200);
+  }
+
+  /* Namen der Mitspieler mitschicken, damit ein Gast von diesem Geraet auf
+     dem anderen nicht "Unbekannt" heisst. */
+  function liveNamen(ids) {
+    var namen = {};
+    ids.forEach(function (id) { namen[id] = pname(id); });
+    return namen;
+  }
+  function liveNamenUebernehmen(g) {
+    if (!g || !g.namen) return;
+    Object.keys(g.namen).forEach(function (fid) {
+      if (S.profiles.some(function (p) { return p.id === fid; })) return;
+      S.profiles.push({
+        id: fid, name: String(g.namen[fid]).slice(0, 30),
+        avatar: null, hue: freeHue(), created: Date.now(),
+        gast: true, hidden: true
+      });
+    });
+  }
+
+  function liveMeta(spiel, text) {
+    var ich = liveNutzer();
+    return {
+      sid: spiel.id, seq: spiel.seq, hash: liveHash(text),
+      mit: (spiel.spieler || []).filter(function (id) { return id !== ich; })
+    };
+  }
+
+  /*
+   * Fremder Stand vom Server. Ersetzt das Spiel als Ganzes; halb getippte
+   * Eingaben sind danach hinfaellig, denn der andere hat gerade geworfen.
+   * Gibt zurueck, ob sich etwas geaendert hat.
+   */
+  function liveUebernehmen(spiel, konflikt) {
+    var g = liveSpiel();
+    if (!g || !spiel || spiel.id !== g.online.sid) return false;
+    if (!spiel.state || spiel.seq <= (g.online.seq || 0)) return false;
+    var alt = g;
+    var neu = spiel.state;
+    var text = JSON.stringify(neu);
+    neu.online = liveMeta(spiel, text);
+    liveNamenUebernehmen(neu);
+    S.game = neu;
+    UI.darts = []; UI.input = ''; UI.error = '';
+    /* Halbfertige Dialoge beziehen sich auf den alten Stand. */
+    if (UI.overlay && (UI.overlay.type === 'checkout-darts' || UI.overlay.type === 'edit-visit')) UI.overlay = null;
+    var wer = spiel.geaendertVonName || 'Dein Mitspieler';
+
+    if (spiel.status === 'zu') {
+      /* Der andere hat gespeichert oder abgebrochen. Gespeichert wird hier
+         genauso -- derselbe Eintrag, dieselbe Kennung, der Server kennt ihn
+         dann schon. */
+      if (neu.done) { archiveGame(neu); UI.overlay = { type: 'hinweis', titel: 'Spiel gespeichert', text: wer + ' hat das Spiel abgeschlossen. Es steht jetzt in der Statistik.' }; }
+      else UI.overlay = { type: 'hinweis', titel: 'Spiel abgebrochen', text: wer + ' hat das Online-Spiel abgebrochen.' };
+      S.game = null;
+      S.screen = 'setup';
+      save();
+      return true;
+    }
+
+    if (neu.done && !alt.done && (!UI.overlay || UI.overlay.type === 'hinweis')) UI.overlay = { type: 'game-done', pid: neu.winner };
+    if (!neu.done && alt.done && UI.overlay && UI.overlay.type === 'game-done') UI.overlay = null;
+    if (S.screen === 'bulloff' && neu.started) S.screen = spielScreen(neu.kind);
+    if (konflikt && !UI.overlay) {
+      UI.overlay = { type: 'hinweis', titel: 'Der andere war schneller', text: wer + ' hat gerade eingetragen. Deine letzte Eingabe wurde nicht übernommen – bitte nochmal eintragen.' };
+    }
+    save();
+    return true;
+  }
+
+  /* Spiel beim Server weg: lokal weiterspielen, nicht mehr nachfragen. */
+  function liveGetrennt() {
+    var g = liveSpiel();
+    if (!g) return;
+    delete g.online;
+    save();
+  }
+
+  /* " · online mit Tobi" -- und wenn die Verbindung hakt, steht es dabei. */
+  function liveLabel(g) {
+    if (!g || !g.online) return '';
+    var st = window.DartSync && window.DartSync.live ? window.DartSync.live.status() : null;
+    var mit = (g.online.mit || []).map(pname).join(', ');
+    return ' · online' + (mit ? ' mit ' + mit : '') +
+      (g.online.wartet ? ' · wird angelegt …' : st && st.stoerung ? ' · keine Verbindung' : '');
+  }
+
+  function liveEnde(g) {
+    if (!g || !g.online || !window.DartSync || !window.DartSync.live) return;
+    if (g.online.wartet) return;   // nie beim Server angekommen
+    var stand = S.game === g ? liveStand() : null;
+    window.DartSync.live.ende(g.online.sid, stand);
+  }
+
+  /* Neues Spiel online anmelden. Klappt es nicht (kein Netz, Server weg),
+     laeuft es still lokal weiter -- wie beim geteilten Turnier. */
+  var liveAnmeldungLaeuft = false;
+  function liveAnlegen(g) {
+    if (liveAnmeldungLaeuft) return Promise.resolve();
+    liveAnmeldungLaeuft = true;
+    var konten = liveMitspieler(g.players);
+    g.namen = liveNamen(g.players);
+    var text = liveText(g);
+    return window.DartSync.live.anlegen(g.id, g.kind, JSON.parse(text), konten).then(function (spiel) {
+      liveAnmeldungLaeuft = false;
+      if (S.game !== g) return;
+      g.online = liveMeta(spiel, text);
+      save(); render();
+      /* Was waehrend der Anmeldung schon eingetippt wurde, geht jetzt hoch. */
+      liveAnstossen();
+    }).catch(function (e) {
+      liveAnmeldungLaeuft = false;
+      if (S.game !== g) return;
+      /* Kein Netz: spaeter nochmal (render() holt das nach). Abgelehnt:
+         lokal weiterspielen und das auch sagen -- der Hinweis im Setup hat
+         schliesslich versprochen, dass es beim anderen auftaucht. */
+      if (e && e.status && e.status !== 429 && e.status < 500) {
+        delete g.online;
+        UI.overlay = { type: 'hinweis', titel: 'Nur hier am Gerät', text: 'Das Online-Spiel konnte nicht angelegt werden: ' + (e.message || '') + ' Das Spiel läuft jetzt nur auf diesem Gerät.' };
+      }
+      save(); render();
+    });
+  }
+
+  /* Einem Online-Spiel beitreten. Ein fertiges eigenes Spiel wird vorher
+     gesichert; ein angefangenes fragt vorher nach. */
+  function liveBeitreten(spiel) {
+    if (!spiel || !spiel.state) return;
+    if (S.game && S.game.done) archiveGame(S.game);
+    else if (S.game) liveEnde(S.game);   // ein eigenes Online-Spiel wird sauber geschlossen
+    var neu = spiel.state;
+    var text = JSON.stringify(neu);
+    neu.online = liveMeta(spiel, text);
+    liveNamenUebernehmen(neu);
+    S.game = neu;
+    S.mode = neu.kind;
+    /* Aufstellung und Online-Schalter mitnehmen: "Nochmal spielen" soll
+       hier dieselben Leute wieder online zusammenbringen. */
+    S.lineup = (neu.players || []).slice();
+    S.settings.online = 1;
+    UI.overlay = null; UI.darts = []; UI.input = ''; UI.error = ''; UI.mult = 1;
+    UI.turnier = false; UI.bullReihe = [];
+    S.screen = neu.started ? spielScreen(neu.kind) : 'bulloff';
+    save(); render();
+  }
+
   /* Ein Schnelles Spiel ist selbst die laufende Partie – dadurch tragen
      Spielbildschirm, Eingabe, Finish-Vorschlag und Undo unveraendert. */
   function currentMatch() {
@@ -1773,6 +1989,13 @@
       UI.bullReihe = [];
       S.screen = 'bulloff';
     }
+    /* Online: Mitspieler mit Konto sehen das Spiel auf ihrem Handy und
+       tragen mit ein. Solange die Anmeldung beim Server laeuft, ist das
+       online-Feld schon da, damit kein Stand vorbeirutscht. */
+    if (S.settings.online === 1 && liveMoeglich(kind, S.lineup)) {
+      S.game.online = { sid: S.game.id, seq: 0, hash: '', mit: liveMitspieler(S.lineup), wartet: true };
+      liveAnlegen(S.game);
+    }
     save(); render();
   }
 
@@ -1819,6 +2042,7 @@
   }
 
   function finishGame() {
+    liveEnde(S.game);
     archiveGame(S.game);
     S.game = null;
     UI.overlay = null;
@@ -2025,7 +2249,18 @@
     if (window.DartSync && window.DartSync.turnier) {
       window.DartSync.turnier.takt(S.screen === 'tournament' && !!geteiltesTurnier());
     }
+    /* Das Online-Spiel taktet, solange man es anschaut -- auch im Bull-Off
+       und in der Auswertung, denn dort wartet man auf den anderen. */
+    if (window.DartSync && window.DartSync.live) {
+      var lg = liveSpiel();
+      /* Neu geladen, waehrend das Spiel noch angemeldet wurde: nachholen.
+         Der Server kennt die Kennung vielleicht schon -- dann sagt er das. */
+      if (lg && lg.online.wartet && !liveAnmeldungLaeuft && liveNutzer()) liveAnlegen(lg);
+      window.DartSync.live.takt(!!lg && !lg.online.wartet &&
+        (S.screen === spielScreen(lg.kind) || S.screen === 'bulloff' || S.screen === 'summary'));
+    }
     if (S.screen === 'setup' && letzterScreen !== 'setup') beitretbareHolen();
+    setupTakt(S.screen === 'setup');
     // Zusagen frisch holen, wenn man die Liga-Seite betritt – nicht bei
     // jedem Zeichnen, das wäre eine Anfrage je Tastendruck.
     if (S.screen === 'liga' && letzterScreen !== 'liga') { ligaZusagenLaden(); ligaTabelleLaden(); kasseLaden(); }
@@ -2065,6 +2300,7 @@
    * Sie kommt beim Betreten des Setups und nach dem Anmelden.
    */
   var beitretbare = [];
+  var liveBeitretbare = [];
   function beitretbareHolen() {
     if (!window.DartSync || !window.DartSync.turnier) return;
     window.DartSync.turnier.offen().then(function (liste) {
@@ -2074,13 +2310,45 @@
       beitretbare = neu;
       if (vorher !== neu.map(function (t) { return t.id; }).join(',')) render();
     });
+    liveBeitretbareHolen();
+  }
+  function liveBeitretbareHolen() {
+    if (!window.DartSync || !window.DartSync.live) return;
+    window.DartSync.live.offen().then(function (liste) {
+      var eigen = liveSpiel();
+      var neu = liste.filter(function (g) { return !eigen || g.id !== eigen.online.sid; });
+      var vorher = liveBeitretbare.map(function (g) { return g.id + ':' + g.seq; }).join(',');
+      liveBeitretbare = neu;
+      if (S.screen === 'setup' && vorher !== neu.map(function (g) { return g.id + ':' + g.seq; }).join(',')) render();
+    });
+  }
+
+  /* Im Setup alle paar Sekunden nachsehen, ob ein Mitspieler gerade ein
+     Online-Spiel aufgemacht hat -- am Telefon heisst es "hab's gestartet",
+     und dann soll der Knopf da sein, ohne dass man die Seite neu laedt. */
+  var SETUP_TAKT = 6000;
+  var setupTimer = null;
+  function setupTakt(an) {
+    if (setupTimer) { clearInterval(setupTimer); setupTimer = null; }
+    if (!an || !window.DartSync || !window.DartSync.live || !liveNutzer()) return;
+    setupTimer = setInterval(function () { if (!document.hidden) liveBeitretbareHolen(); }, SETUP_TAKT);
   }
 
   function renderBeitreten() {
     var box = $('beitreten-box');
     if (!box) return;
-    box.classList.toggle('hidden', !beitretbare.length);
-    $('beitreten-liste').innerHTML = beitretbare.map(function (t) {
+    box.classList.toggle('hidden', !beitretbare.length && !liveBeitretbare.length);
+    var titel = box.querySelector('h2');
+    if (titel) titel.textContent = beitretbare.length ? 'Turnier läuft' : 'Online-Spiel läuft';
+    var ich = liveNutzer();
+    $('beitreten-liste').innerHTML = liveBeitretbare.map(function (g) {
+      var andere = (g.spielerNamen || []).filter(function (n, i) { return g.spieler[i] !== ich && n; });
+      return '<div class="beitreten-zeile">' +
+        '<div class="who"><div class="nm">' + esc(kindName(g.kind)) + ' von ' + esc(g.angelegtVonName || 'jemandem') + '</div>' +
+        '<div class="sm">online · ' + (andere.length ? 'mit ' + esc(andere.join(', ')) : plural((g.spieler || []).length, 'Spieler', 'Spieler')) + '</div></div>' +
+        '<button class="btn primary small" data-action="live-beitreten" data-id="' + esc(g.id) + '">Mitspielen</button>' +
+        '</div>';
+    }).join('') + beitretbare.map(function (t) {
       var offen = (t.plan.matches || []).length -
         (t.partien || []).filter(function (p) { return p.result; }).length;
       return '<div class="beitreten-zeile">' +
@@ -2131,6 +2399,22 @@
     var kannTeilen = !!(window.DartKonto && window.DartKonto.nutzer()) && S.mode === '501';
     $('setting-geteilt').classList.toggle('hidden', !kannTeilen);
 
+    /* Online spielen: nur angemeldet und nur da, wo der Stand als Ganzes
+       wandern kann (Schnelles Spiel, Finisher). */
+    var onlineKarte = $('settings-online');
+    if (onlineKarte) {
+      var kannOnline = !!liveNutzer() && !!(window.DartSync && window.DartSync.live) && !!LIVE_KINDS[S.mode];
+      onlineKarte.classList.toggle('hidden', !kannOnline);
+      var onlineHint = $('online-hint');
+      if (kannOnline && onlineHint) {
+        var mitKonto = liveMitspieler(S.lineup);
+        onlineHint.textContent = S.settings.online !== 1
+          ? 'Online heißt: Mitspieler mit Konto sehen das Spiel auf ihrem Handy unter „Mitspielen“, sehen jeden Wurf sofort und können selbst eintragen – fürs Spiel am Telefon an zwei Scheiben.'
+          : mitKonto.length
+            ? 'Sobald du startest, erscheint das Spiel bei ' + mitKonto.map(pname).join(', ') + ' im Setup unter „Mitspielen“.'
+            : 'Dafür braucht es mindestens einen Mitspieler mit Konto in der Aufstellung – sonst läuft das Spiel nur hier.';
+      }
+    }
     $('settings-cricket').classList.toggle('hidden', S.mode !== 'cricket');
     $('settings-rtw').classList.toggle('hidden', S.mode !== 'rtw');
     $('settings-finisher').classList.toggle('hidden', S.mode !== 'finisher');
@@ -3130,7 +3414,7 @@
     /* Im Ligaspiel laufen die buergerlichen Namen mit - auch am Board. */
     var spielerName = !schnell && S.tour && S.tour.liga ? ligaName : pname;
     if (schnell) {
-      $('game-match-label').textContent = 'Schnelles Spiel';
+      $('game-match-label').textContent = 'Schnelles Spiel' + liveLabel(m);
       $('game-leg-label').textContent = plural(m.p.length, 'Spieler', 'Spieler') + ' · ' +
         matchStart(m) + ' Double Out';
     } else {
@@ -3761,7 +4045,7 @@
     /* Oben im Kopf steht die Zufalls-Finish-Zahl – genau da, wo das Schnelle
        Spiel seine Startpunktzahl zeigt. Der Rundenstand wandert nach unten
        neben die Eingabe. */
-    $('fin-sub').textContent = plural(g.players.length, 'Spieler', 'Spieler') + ' · ' + st.zahl + ' Double Out';
+    $('fin-sub').textContent = plural(g.players.length, 'Spieler', 'Spieler') + ' · ' + st.zahl + ' Double Out' + liveLabel(g);
     $('fin-runde').textContent = 'Runde ' + (st.runde + 1) + ' · auf ' + g.ziel + ' Punkte';
 
     $('fin-turn').innerHTML = g.done
@@ -4442,8 +4726,15 @@
     } else if (o.type === 'warte') {
       html = '<p>' + esc(o.text) + '</p>';
     } else if (o.type === 'hinweis') {
-      html = '<h3>Geht gerade nicht</h3><p>' + esc(o.text) + '</p>' +
+      html = '<h3>' + esc(o.titel || 'Geht gerade nicht') + '</h3><p>' + esc(o.text) + '</p>' +
         '<button class="btn primary full" data-action="ov-hinweis-zu">Verstanden</button>';
+    } else if (o.type === 'confirm-live-beitreten') {
+      html = '<h3>' + esc(kindName(o.kind)) + ' online mitspielen?</h3>' +
+        '<p>Hier läuft noch ein eigenes, nicht entschiedenes Spiel. Das wird verworfen, ' +
+        'wenn du beim Online-Spiel einsteigst.</p>' +
+        '<div class="row-btns two">' +
+        '<button class="btn ghost" data-action="ov-cancel">Abbrechen</button>' +
+        '<button class="btn primary" data-action="ov-live-beitreten">Mitspielen</button></div>';
     } else if (o.type === 'confirm-beitreten') {
       html = '<h3>Turnier wechseln?</h3>' +
         '<p>Hier läuft noch ein eigenes Turnier mit <b>' +
@@ -5454,6 +5745,39 @@
         UI.overlay = null;
         render();
         break;
+      /* Einem Online-Spiel beitreten. Ein angefangenes eigenes Spiel wuerde
+         dabei verworfen -- das fragt die App vorher. */
+      case 'live-beitreten': {
+        var lid = el.getAttribute('data-id');
+        var lsp = null;
+        liveBeitretbare.forEach(function (g) { if (g.id === lid) lsp = g; });
+        if (!lsp) return;
+        if (S.game && !S.game.done && !UI.liveBestaetigt) {
+          UI.overlay = { type: 'confirm-live-beitreten', id: lid, kind: lsp.kind };
+          render();
+          return;
+        }
+        UI.liveBestaetigt = false;
+        liveBeitretbare = liveBeitretbare.filter(function (g) { return g.id !== lid; });
+        UI.overlay = { type: 'warte', text: 'Spielstand wird geholt …' };
+        render();
+        window.DartSync.live.holen(lid, 0).then(function (voll) {
+          UI.overlay = null;
+          if (voll && voll.status === 'offen' && voll.state) liveBeitreten(voll);
+          else { UI.overlay = { type: 'hinweis', text: 'Dieses Online-Spiel ist inzwischen zu.' }; render(); }
+        }).catch(function (e) {
+          UI.overlay = { type: 'hinweis', text: e && e.message ? e.message : 'Das hat nicht geklappt.' };
+          render();
+        });
+        break;
+      }
+      case 'ov-live-beitreten': {
+        UI.liveBestaetigt = true;
+        var lod = UI.overlay && UI.overlay.id;
+        UI.overlay = null;
+        handleActionInner('live-beitreten', { getAttribute: function () { return lod; } });
+        break;
+      }
       case 'rtw-stechen': {
         var rsg = S.game;
         if (!rsg || rsg.kind !== 'rtw' || rsg.done) return;
@@ -5498,7 +5822,7 @@
         break;
       case 'to-tournament':
         // Aus dem Bull-Off eines Trainingsspiels führt der Weg ins Setup zurück.
-        if (S.game && !S.game.started) { S.game = null; S.screen = 'setup'; }
+        if (S.game && !S.game.started) { liveEnde(S.game); S.game = null; S.screen = 'setup'; }
         // Ein Schnelles Spiel gehört zu keinem Spielplan – zurück ins Setup,
         // das laufende Spiel bleibt in der Fortsetzen-Box stehen.
         else if (S.game && S.game.kind === 'quick') S.screen = 'setup';
@@ -5981,6 +6305,7 @@
       /* Ein abgebrochenes freies Spiel hat keinen Sieger und damit nichts,
          was in die Statistik gehören würde – es wird verworfen. */
       case 'ov-discard-game':
+        liveEnde(S.game);
         S.game = null;
         UI.overlay = null;
         S.screen = 'setup';
@@ -6481,6 +6806,12 @@
       uebernehmeTurnier: uebernehmeTurnier,
       turnierListeAktualisieren: beitretbareHolen,
       turnierBeitreten: turnierBeitreten,
+      liveStand: liveStand,
+      liveGeschrieben: liveGeschrieben,
+      liveUebernehmen: liveUebernehmen,
+      liveGetrennt: liveGetrennt,
+      liveBeitreten: liveBeitreten,
+      liveBeitretbare: function () { return liveBeitretbare; },
       letztesSpielAm: letztesSpielAm,
       gaesteAufraeumen: gaesteAufraeumen,
       platzhalterEntfernen: platzhalterEntfernen,
