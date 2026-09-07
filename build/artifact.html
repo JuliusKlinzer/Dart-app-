@@ -751,13 +751,27 @@ h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; colo
 .podium .pv { color: var(--muted); font-size: 0.85rem; }
 
 @media (max-width: 699px) and (orientation: portrait) {
-  /* Höhenverteilung am Handy: Kopf, Spielstand und Eingabe stehen fest,
-     der Wurfverlauf bekommt den Rest – aber nie null, sonst ist die
-     Korrektur per Tipp nicht erreichbar. */
+  /* Höhenverteilung am Handy: Kopf und Spielstand stehen oben fest, das
+     Eingabefeld unten fest, der Wurfverlauf bekommt, was übrig bleibt –
+     auf kleinen Handys auch gar nichts. Die Seite selbst scrollt im Spiel
+     nie: body ist genau bildschirmhoch (Kerbe und Wischbalken sind im
+     Innenabstand schon drin), der Spielbildschirm füllt den Rest. Vorher
+     kamen die Ränder auf die Bildschirmhöhe obendrauf, und das Tastenfeld
+     ließ sich ein Stück nach unten wegschieben. */
+  body.im-spiel {
+    height: 100vh; height: 100dvh; min-height: 0; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  body.im-spiel > * { flex: none; }
+  body.im-spiel .screen.game.active { flex: 1 1 auto; height: auto; min-height: 0; overflow: hidden; padding-bottom: 0; }
   .screen.game.active { height: calc(100dvh - 12px); min-height: 0; overflow: hidden; }
-  .game-body { min-height: 0; }
-  .game-main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-  .history { flex: 1; min-height: 88px; overflow-y: auto; }
+  .game-header { flex: none; }
+  .game-body { flex: 1 1 auto; min-height: 0; }
+  /* Passt der Spielstand selbst nicht (vier Spieler, sehr kleines Handy),
+     scrollt nur er – nie das Eingabefeld. */
+  body.im-spiel .game-main { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; }
+  .game-main > * { flex: none; }
+  .history { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
   .input-area { flex: none; margin-top: 0; }
   .pad { display: block; }
   /* Etwas flacheres Tastenfeld, damit der Verlauf zwei Zeilen behält. */
@@ -772,10 +786,34 @@ h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; colo
 @media (max-height: 820px) and (max-width: 699px) and (orientation: portrait) {
   .pcard .rest { font-size: 2.4rem; }
   .pcard { padding: 8px; }
-  .history { min-height: 44px; }
   .keypad button { min-height: 46px; font-size: 1.25rem; }
   .num-grid button { min-height: 44px; }
   .quick-row button { min-height: 44px; }
+}
+
+/* Kurze Handys (iPhone SE, 360x640): das Tastenfeld wird flacher, damit
+   auch vier Spielerkarten ueber der Eingabe Platz haben. Der Verlauf faellt
+   dann weg -- Spielstand oben und Eingabe unten sind wichtiger. */
+@media (max-height: 700px) and (max-width: 699px) and (orientation: portrait) {
+  .game-header { padding: 4px 0; }
+  .game-header .icon-btn { width: 44px; height: 44px; }
+  .mode-row { margin-bottom: 4px; }
+  .checkout-bar { min-height: 38px; padding: 5px 8px; margin-bottom: 6px; }
+  .fin-kacheln { margin-bottom: 6px; }
+  .fin-kacheln .fk { min-height: 44px; font-size: 1.4rem; }
+  .scoreboard { margin-bottom: 6px; }
+  .scoreboard.viele .pcard .rest { font-size: clamp(1.6rem, 4.5vh, 2.4rem); }
+  .quick-row { margin-bottom: 6px; }
+  .quick-row button { min-height: 38px; padding: 6px 0; }
+  .display-row { min-height: 30px; margin-bottom: 4px; }
+  .score-display { font-size: 1.8rem; }
+  .keypad { gap: 5px; }
+  .keypad button { min-height: 42px; font-size: 1.2rem; }
+  .mult-row { margin-bottom: 5px; }
+  .mult-row button { min-height: 40px; }
+  .num-grid { gap: 5px; }
+  .num-grid button { min-height: 42px; font-size: 1.05rem; }
+  .cg-block button { min-height: 46px; }
 }
 
 /* ================= Tablet / iPad ================= */
@@ -1077,7 +1115,7 @@ h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; colo
 /* ---------- Cricket am Handy im Hochformat ---------- */
 @media (max-width: 699px) and (orientation: portrait) {
   #screen-cricket .game-main { min-height: 0; }
-  .cricket-board { flex: 1; min-height: 0; overflow: auto; }
+  .cricket-board { flex: 1 1 auto; min-height: 0; overflow: auto; }
   .cr-cell { padding: 4px 3px; }
   .cr-head { font-size: 0.66rem; padding: 4px 2px; gap: 2px; }
   .cr-head .av.sm { width: 20px; height: 20px; font-size: 0.55rem; }
@@ -1575,7 +1613,7 @@ button, input, select, textarea { font-family: inherit; }
    stand oben, das Tastenfeld unten. Die Zeilen der Tafel wachsen jetzt in
    den freien Platz -- gedeckelt, damit zwei Spieler keine Plakate werden. */
 @media (max-width: 699px) and (orientation: portrait) {
-  #screen-rtw .rtw-board { flex: 1 1 auto; min-height: 0; }
+  #screen-rtw .rtw-board { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
   /* Die Zeilen fuellen den freien Platz. Deckeln waere schlimmer: dann
      bliebe das Loch nur woanders, und das Tastenfeld haenge nicht mehr
      unten am Rand, wo der Daumen ist. */
@@ -6112,6 +6150,10 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
        Schein des aktiven Spielers hart abschneiden. */
     document.body.classList.toggle('am-board',
       UI.turnier && turnierErlaubt() && (S.screen === 'game' || S.screen === 'bulloff'));
+    /* Im Spiel scrollt die Seite am Handy nicht: Spielstand oben fest,
+       Eingabefeld unten fest (siehe body.im-spiel in styles.css). */
+    document.body.classList.toggle('im-spiel',
+      S.screen === 'game' || S.screen === 'cricket' || S.screen === 'rtw' || S.screen === 'finisher');
     if (S.screen === 'setup') renderSetup();
     /* Der Hintergrundtakt laeuft nur da, wo man ihn auch sieht: im
        Turnierbildschirm. Sonst fragt die App den ganzen Abend nach Daten,

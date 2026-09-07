@@ -2242,6 +2242,10 @@
        Schein des aktiven Spielers hart abschneiden. */
     document.body.classList.toggle('am-board',
       UI.turnier && turnierErlaubt() && (S.screen === 'game' || S.screen === 'bulloff'));
+    /* Im Spiel scrollt die Seite am Handy nicht: Spielstand oben fest,
+       Eingabefeld unten fest (siehe body.im-spiel in styles.css). */
+    document.body.classList.toggle('im-spiel',
+      S.screen === 'game' || S.screen === 'cricket' || S.screen === 'rtw' || S.screen === 'finisher');
     if (S.screen === 'setup') renderSetup();
     /* Der Hintergrundtakt laeuft nur da, wo man ihn auch sieht: im
        Turnierbildschirm. Sonst fragt die App den ganzen Abend nach Daten,
