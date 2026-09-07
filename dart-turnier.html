@@ -4927,7 +4927,11 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
       var start = entry.start || 501;
       entry.matches.forEach(function (m) {
         if (m.kampflos) return;
-        if (m.done) {
+        /* Allein am Board gibt es niemanden zu schlagen: ein Solo-Spiel
+           liefert Average, 180er und Finishes, aber weder Sieg noch
+           Niederlage noch ein gewonnenes Leg. */
+        var solo = m.p.length < 2;
+        if (m.done && !solo) {
           /* Nicht auf zwei Spieler festgelegt: ein Schnelles Spiel hat so
              viele Teilnehmer wie ausgewaehlt wurden. Gewonnen hat einer,
              verloren haben alle anderen. */
@@ -4989,12 +4993,15 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
 
           if (leg.winner) {
             var w = stat(leg.winner);
-            w.legsWon++;
-            var opp = m.p[0] === leg.winner ? m.p[1] : m.p[0];
-            stat(opp).legsLost++;
             var used = dartsInLeg(leg, leg.winner);
-            w.dartsInWonLegs += used;
+            /* Das beste Leg ist eine persoenliche Bestmarke und zaehlt auch
+               allein - die Leg-Bilanz braucht einen Gegner. */
             if (w.bestLeg === null || used < w.bestLeg) w.bestLeg = used;
+            if (!solo) {
+              w.legsWon++;
+              m.p.forEach(function (pid) { if (pid !== leg.winner) stat(pid).legsLost++; });
+              w.dartsInWonLegs += used;
+            }
           }
         });
       });
@@ -6001,7 +6008,8 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
     if (runningGame && S.game.done) {
       $('resume-box').querySelector('strong').textContent =
         kindName(S.game.kind) + ' beendet';
-      $('resume-info').textContent = 'Sieger: ' + pname(S.game.winner) + ' · Ergebnis noch nicht gespeichert';
+      var soloFertig = S.game.kind === 'quick' && S.game.p && S.game.p.length < 2;
+      $('resume-info').textContent = (soloFertig ? 'Solo · ' : 'Sieger: ' + pname(S.game.winner) + ' · ') + 'Ergebnis noch nicht gespeichert';
       resumeBtn.textContent = 'Ergebnis ansehen';
     } else if (runningGame) {
       $('resume-box').querySelector('strong').textContent = 'Laufendes ' + kindName(S.game.kind);
@@ -6437,6 +6445,16 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
         });
         return d ? ((p / d) * 3).toFixed(1) : '–';
       };
+      if (m.p.length < 2) {
+        /* Solo-Spiel: niemand hat gewonnen, es gibt nur die Darts bis zum Finish. */
+        var soloD = sum(m.legs, function (l) { return dartsInLeg(l, m.p[0]); });
+        return '<div class="log-row tap" data-action="open-summary" data-kind="501" data-id="' + m.id + '" role="button" tabindex="0">' +
+          '<div class="lp">' + esc(pname(m.p[0])) + '<span class="a">Ø ' + avgOf(m.p[0]) + '</span></div>' +
+          '<div class="ls">' + soloD + '</div>' +
+          '<div class="lp right muted">Solo<span class="a">' + plural(soloD, 'Dart', 'Darts') + '</span></div>' +
+          '<div class="ld">' + fmtDate(m.at || e.at) + '</div>' +
+          '</div>';
+      }
       return '<div class="log-row tap" data-action="open-summary" data-kind="501" data-id="' + m.id + '" role="button" tabindex="0">' +
         '<div class="lp ' + (m.winner === m.p[0] ? 'w' : '') + '">' + esc(pname(m.p[0])) + '<span class="a">Ø ' + avgOf(m.p[0]) + '</span></div>' +
         '<div class="ls">' + la + ':' + lb + '</div>' +
@@ -6550,6 +6568,16 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
         var m = e.m;
         var opp = m.p[0] === p.id ? m.p[1] : m.p[0];
         var win = m.winner === p.id;
+        if (m.p.length < 2) {
+          /* Solo-Spiel: kein Gegner, kein Sieg - nur die Darts bis zum Finish. */
+          var soloDarts = sum(m.legs, function (l) { return dartsInLeg(l, p.id); });
+          return '<div class="log-row">' +
+            '<div class="lp">Solo</div>' +
+            '<div class="ls">' + plural(soloDarts, 'Dart', 'Darts') + '</div>' +
+            '<div class="lp right">' + (m.start || e.start) + ' allein</div>' +
+            '<div class="ld">' + fmtDate(m.at || e.at) + '</div>' +
+            '</div>';
+        }
         return '<div class="log-row">' +
           '<div class="lp ' + (win ? 'w' : '') + '">' + (win ? 'Sieg' : 'Niederlage') + '</div>' +
           '<div class="ls">' + legsWon(m, p.id) + ':' + legsWon(m, opp) + '</div>' +
@@ -6975,7 +7003,7 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
 
     var pendingSum = sum(UI.darts, function (d) { return d.v; });
     $('game-turn').innerHTML = m.done
-      ? '<b>' + esc(spielerName(m.winner)) + '</b> hat gewonnen'
+      ? '<b>' + esc(spielerName(m.winner)) + '</b> ' + (m.p.length < 2 ? 'hat ausgemacht' : 'hat gewonnen')
       : '<span class="muted">Am Wurf</span> <b>' + esc(spielerName(active)) + '</b>' +
         '<span class="muted"> · Rest ' + (remainingIn(leg, active) - pendingSum) + '</span>';
     /* Vier Karten in Turniergröße füllen ein Handydisplay allein aus und
@@ -7939,21 +7967,25 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
       var map = collectStats([{ matches: [m], start: found.start }], m.p);
       m.p.forEach(function (id) { finalize(map[id]); });
 
+      var mSolo = m.p.length < 2;
       box = '<div class="sum-head">' +
-        '<div class="big-emoji">🏆</div>' +
-        '<h2 class="sum-title">' + esc(pname(m.winner)) + ' gewinnt</h2>' +
-        '<div class="sum-score">' +
-          '<span class="' + (m.winner === m.p[0] ? 'w' : '') + '">' + esc(pname(m.p[0])) + '</span>' +
-          '<b>' + legsWon(m, m.p[0]) + ':' + legsWon(m, m.p[1]) + '</b>' +
-          '<span class="' + (m.winner === m.p[1] ? 'w' : '') + '">' + esc(pname(m.p[1])) + '</span>' +
-        '</div></div>' +
+        '<div class="big-emoji">' + (mSolo ? '🎯' : '🏆') + '</div>' +
+        '<h2 class="sum-title">' + esc(pname(m.winner)) + (mSolo ? ' hat ausgemacht' : ' gewinnt') + '</h2>' +
+        (mSolo
+          ? '<div class="muted">Schnelles Spiel · ' + found.start + ' Double Out · Solo</div>'
+          : '<div class="sum-score">' +
+            '<span class="' + (m.winner === m.p[0] ? 'w' : '') + '">' + esc(pname(m.p[0])) + '</span>' +
+            '<b>' + legsWon(m, m.p[0]) + ':' + legsWon(m, m.p[1]) + '</b>' +
+            '<span class="' + (m.winner === m.p[1] ? 'w' : '') + '">' + esc(pname(m.p[1])) + '</span>' +
+          '</div>') +
+        '</div>' +
 
         '<div class="sum-cards">' + m.p.map(function (id) {
           var st = map[id];
           return '<div class="card sum-card ' + (m.winner === id ? 'win' : '') + '">' +
             '<div class="sum-who">' + avatarHTML(profile(id), 'md') +
               '<div><div class="nm">' + esc(pname(id)) + '</div>' +
-              '<div class="muted">' + st.legsWon + ' Leg' + (st.legsWon === 1 ? '' : 's') + '</div></div></div>' +
+              '<div class="muted">' + (mSolo ? 'ausgecheckt' : st.legsWon + ' Leg' + (st.legsWon === 1 ? '' : 's')) + '</div></div></div>' +
             statRow('3-Dart-Average', st.darts ? st.avg.toFixed(2) : '–') +
             statRow('First 9', st.first9Darts ? st.first9.toFixed(2) : '–') +
             statRow('Höchste Aufnahme', st.highScore || '–') +
@@ -8018,10 +8050,11 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
       qm.p.forEach(function (id) { finalize(qMap[id]); });
       var qLeg = qm.legs[qm.legs.length - 1];
 
-      box = '<div class="sum-head"><div class="big-emoji">🏆</div>' +
-        '<h2 class="sum-title">' + esc(pname(qm.winner)) + ' gewinnt</h2>' +
+      var qSolo = qm.p.length < 2;
+      box = '<div class="sum-head"><div class="big-emoji">' + (qSolo ? '🎯' : '🏆') + '</div>' +
+        '<h2 class="sum-title">' + esc(pname(qm.winner)) + (qSolo ? ' hat ausgemacht' : ' gewinnt') + '</h2>' +
         '<div class="muted">Schnelles Spiel · ' + qStart + ' Double Out · ' +
-          plural(qm.p.length, 'Spieler', 'Spieler') + '</div></div>' +
+          (qSolo ? 'Solo' : plural(qm.p.length, 'Spieler', 'Spieler')) + '</div></div>' +
         '<div class="sum-cards">' + qm.p.map(function (id) {
           var st = qMap[id];
           var rest = qLeg ? remainingIn(qLeg, id) : 0;
@@ -8534,7 +8567,9 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
         if (gdWahl < 0) return sonst;
         return i === gdWahl ? 'btn primary full wahl' : 'btn ghost full';
       };
-      html = '<div class="big-emoji">🏆</div><h3>Glückwunsch, ' + esc(pname(o.pid)) + '!</h3>' +
+      var gdSolo = S.game && S.game.kind === 'quick' && S.game.p && S.game.p.length < 2;
+      html = '<div class="big-emoji">' + (gdSolo ? '🎯' : '🏆') + '</div><h3>' +
+        (gdSolo ? 'Ausgemacht, ' : 'Glückwunsch, ') + esc(pname(o.pid)) + '!</h3>' +
         '<p>' + (S.game ? kindName(S.game.kind) : '') + '</p>' +
         '<button class="' + gdKl(0, 'btn primary full') + '" data-action="open-summary" data-kind="' + (S.game ? S.game.kind : 'cricket') + '" data-id="current">Weiter zur Spielstatistik</button>' +
         '<button class="' + gdKl(1, 'btn ghost full') + '" data-action="undo-game">Letzten Dart zurück</button>' +

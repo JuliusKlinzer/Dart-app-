@@ -1535,6 +1535,41 @@ check('Fortsetzen fuehrt zurueck ins Spiel mit dem alten Stand',
   }, visitsVorher));
   check('der Rest bleibt unveraendert', (await rest(0)) === '441');
 }
+
+/* Allein ausmachen ist kein Sieg: niemand wurde geschlagen. Average und
+   Rekorde zaehlen trotzdem - nur die Bilanz (Siege/Niederlagen/Legs) nicht. */
+const soloId = await page.evaluate(() => window.__dart.currentMatch().p[0]);
+const soloVorher = await page.evaluate((id) => {
+  const c = window.__dart.career()[id];
+  return { won: c.won, lost: c.lost, matches: c.matches, legsWon: c.legsWon, darts: c.darts, form: c.lastResults.length };
+}, soloId);
+await page.evaluate(() => { window.__dart.state().settings.dartModeFrom = 0; });
+await typeScore(180); await typeScore(180);           // 441 -> 261 -> 81
+await page.locator('#mode-toggle button[data-mode="total"]').click();
+await typeScore(81);                                   // Finish
+await page.locator('#overlay-card [data-action="co-darts"]').first().click();
+check('Solo-Spiel ist ausgemacht', await page.evaluate(() => window.__dart.currentMatch().done));
+check('kein Glueckwunsch zum Sieg, sondern zum Ausmachen',
+  (await textKlein('#overlay-card')).includes('ausgemacht') && !(await textKlein('#overlay-card')).includes('glückwunsch'));
+await page.locator('#overlay-card [data-action="open-summary"]').click();
+check('Auswertung sagt nicht "gewinnt"',
+  (await textKlein('#summary-box')).includes('ausgemacht') && !(await textKlein('#summary-box')).includes('gewinnt'));
+await page.locator('#summary-actions [data-action="finish-game"]').click();
+const soloNachher = await page.evaluate((id) => {
+  const c = window.__dart.career()[id];
+  return { won: c.won, lost: c.lost, matches: c.matches, legsWon: c.legsWon, darts: c.darts, form: c.lastResults.length };
+}, soloId);
+check('Solo zaehlt nicht als Sieg', soloNachher.won === soloVorher.won, soloVorher.won + ' -> ' + soloNachher.won);
+check('Solo zaehlt nicht als Spiel in der Bilanz', soloNachher.matches === soloVorher.matches);
+check('Solo bringt kein gewonnenes Leg', soloNachher.legsWon === soloVorher.legsWon);
+check('Solo taucht nicht in der Form auf', soloNachher.form === soloVorher.form);
+check('die Darts zaehlen aber fuer den Average', soloNachher.darts > soloVorher.darts);
+await page.evaluate((id) => { window.__dart.setScreen('players'); }, soloId);
+await page.locator(`#players-list [data-id="${soloId}"]`).first().click();
+const soloProfil = await text('#profile-detail');
+check('das Profil listet das Solo-Spiel ohne Sieg und ohne Gegner',
+  soloProfil.includes('Solo') && !soloProfil.includes('gegen undefined'), soloProfil.slice(0, 200));
+
 await page.evaluate(() => {
   const D = window.__dart, S = D.state();
   S.game = null;
