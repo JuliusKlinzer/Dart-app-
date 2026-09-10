@@ -118,6 +118,25 @@
         <button data-value="5">Best of 5</button>
       </div>
     </div>
+    <!-- Nur im Schnellen Spiel: Sätze und Legs wie bei einem kleinen Turnier. -->
+    <div class="setting hidden" id="setting-quick-dauer">
+      <label>Spieldauer</label>
+      <div class="options" data-setting="quickModus">
+        <button data-value="0">First to</button>
+        <button data-value="1">Best of</button>
+      </div>
+      <div class="stepper">
+        <button type="button" data-action="quick-step" data-key="quickSaetze" data-dir="-1" aria-label="weniger Sätze">−</button>
+        <span id="quick-saetze">1 Satz</span>
+        <button type="button" data-action="quick-step" data-key="quickSaetze" data-dir="1" aria-label="mehr Sätze">+</button>
+      </div>
+      <div class="stepper">
+        <button type="button" data-action="quick-step" data-key="quickLegs" data-dir="-1" aria-label="weniger Legs">−</button>
+        <span id="quick-legs">1 Leg</span>
+        <button type="button" data-action="quick-step" data-key="quickLegs" data-dir="1" aria-label="mehr Legs">+</button>
+      </div>
+      <p class="hint" id="quick-dauer-hint"></p>
+    </div>
     <!-- Nur angemeldet sichtbar: ohne Konto gibt es niemanden zum Teilen. -->
     <div class="setting hidden" id="setting-geteilt">
       <label>An zwei Scheiben</label>

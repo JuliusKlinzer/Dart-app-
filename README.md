@@ -18,10 +18,10 @@ Repo-Einstellungen → Pages → Branch auswählen), Seite im Browser öffnen un
 Teilen-Menü „Zum Home-Bildschirm“ hinzufügen. Danach startet sie ohne Browserleiste
 wie eine native App und funktioniert auch ohne Internet.
 
-**iPad:** Hoch- und Querformat werden unterstützt. Im Querformat steht der Spielstand
-links und das Eingabefeld rechts; das Spielbild ist **fest im Rahmen** – nichts
-scrollt aus dem Bild, nur der Wurfverlauf scrollt in seinem eigenen Kasten, und
-die getippte Zahl leuchtet groß über den Tasten. Im Hochformat liegt die Eingabe unten. Tasten und
+**iPad:** Hoch- und Querformat werden unterstützt. Das X01-Spielbild ist wie ein
+Scorer am Board aufgebaut: oben die Spieler nebeneinander in voller Breite, darunter
+Schnellwahl, getippte Zahl und das große Zahlenfeld, das den Rest der Höhe füllt; das
+Spielbild ist **fest im Rahmen** – nichts scrollt aus dem Bild. Tasten und
 Schrift werden auf Tablets automatisch größer, Doppeltipp-Zoom ist auf Buttons
 deaktiviert. Split View funktioniert ebenfalls – bei schmaler Spalte schaltet die App
 auf das Handy-Layout um.
@@ -37,9 +37,21 @@ Der Modus wird im Setup gewählt, die Aufstellung gilt für alle vier gleich.
 
 Cricket, Round the World, Finisher und das Schnelle Spiel gehen auch **allein** –
 als Training gegen sich selbst. Allein wird nicht ausgebullt, es geht direkt los,
-und der Spielbildschirm zeigt eine große Karte mit Finish-Vorschlag und dem Verlauf
-mittig darunter. Nur das X01-Turnier braucht mindestens zwei Spieler, es ist ja
-jeder gegen jeden.
+und der Spielbildschirm zeigt eine große Karte mit Finish-Vorschlag. Nur das
+X01-Turnier braucht mindestens zwei Spieler, es ist ja jeder gegen jeden.
+
+### Schnelles Spiel
+
+Alle ausgewählten Spieler an einem Board, reihum, 501 (oder 301/701) Double Out –
+ohne Spielplan. Startpunkte und Einzel-Dart-Grenze teilt es sich mit dem Turnier.
+Dazu kommt die **Spieldauer** wie bei einem kleinen Turnier: **First to** oder
+**Best of**, und je ein Zähler für **Sätze** und **Legs** (Best of zählt in
+Zweierschritten, 1 Satz / 1 Leg ist das alte „wer zuerst auscheckt“). Ein Satz geht
+an den, der zuerst die Legs hat, das Spiel an den, der zuerst die Sätze hat. Der
+Anwurf wandert Leg für Leg weiter, der Kopf zählt Satz und Leg mit, die Spielerfelder
+zeigen den Stand, und am Ende eines Satzes sagt der Dialog „Satz an …“. In der
+Statistik zählt das ganze Spiel als ein Sieg, jedes Leg fließt in Average und
+Rekorde ein. Die Einstellung bleibt gespeichert, bis sie geändert wird.
 
 ### X01 Turnier (jeder gegen jeden)
 
@@ -324,12 +336,15 @@ markiert, im Einzel-Dart-Modus ist die passende Zahl zusätzlich umrandet.
 - Mit 3 Darts unmögliche Summen (179, 178, 176, 175, 173, 172, 169, 166, 163) werden
   abgelehnt.
 
-**Verlauf, Undo & Korrektur:** Unter dem Spielstand stehen die letzten Aufnahmen
-beider Spieler (Bust durchgestrichen mit Grund, Checkout grün). Der ↺-Button oben
-rechts nimmt Dart für Dart bzw. Aufnahme für Aufnahme zurück – auch über ein bereits
-gewonnenes Leg hinweg. Fällt ein Tippfehler erst später auf, genügt ein Tipp auf die
-betroffene Zeile: Der Wert lässt sich direkt korrigieren, solange das Leg damit
-schlüssig bleibt.
+**Spielerfeld, Undo & Korrektur:** Jeder Spieler hat ein Feld: oben der Average,
+groß der Rest und rechts daneben **klein die letzte Aufnahme** („345 | 60“, Bust rot
+durchgestrichen), darunter Name und Legs. Wirft er wieder, rutscht die alte Zahl wie
+in einem Drehrad nach oben und verblasst, die neue schiebt von unten nach. Einen
+Wurfverlauf gibt es im Spielbild nicht mehr – im Turnier-Modus zeigt ihn weiterhin
+Shift. Der ↺-Button oben rechts nimmt Dart für Dart bzw. Aufnahme für Aufnahme
+zurück – auch über ein bereits gewonnenes Leg hinweg. Fällt ein Tippfehler an der
+letzten Aufnahme erst später auf, genügt ein Tipp auf die kleine Zahl: Der Wert lässt
+sich direkt korrigieren, solange das Leg damit schlüssig bleibt.
 
 **Tastatur (am Laptop):** Ziffern, `Enter` = OK, `Backspace` = löschen, `z` = Undo.
 

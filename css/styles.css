@@ -493,6 +493,14 @@ h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; colo
 .segmented button.active { background: var(--accent); color: var(--on-accent); }
 .segmented.small button { padding: 8px 14px; min-height: 44px; font-size: 0.82rem; }
 .hint { font-size: 0.78rem; color: var(--muted); margin: 6px 0 0; line-height: 1.45; }
+/* Sätze/Legs im Schnellen Spiel: − Wert + in einer Zeile */
+.stepper { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.stepper span { flex: 1; text-align: center; font-size: 1.05rem; font-weight: 700; }
+.stepper button {
+  width: 48px; height: 48px; border-radius: 50%; border: 1px solid var(--line);
+  background: var(--bg-3); color: var(--text); font-size: 1.4rem; font-weight: 700; line-height: 1; cursor: pointer;
+}
+.stepper button:disabled { opacity: 0.35; cursor: default; }
 
 /* ---------- Tabelle ---------- */
 .standings { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
@@ -616,7 +624,11 @@ h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; colo
 #screen-game .pcard.active .rest { text-shadow: 0 0 24px var(--schein-stark); }
 .pcard .pname { font-size: 0.95rem; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; }
 .pcard .legs { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
-.pcard .rest { font-size: 3.4rem; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; margin: 4px 0 2px; }
+.pcard .rest-zeile {
+  display: flex; align-items: center; justify-content: center; gap: 0.16em;
+  font-size: 3.4rem; font-weight: 800; line-height: 1.05; margin: 4px 0 2px; min-width: 0;
+}
+.pcard .rest { font-variant-numeric: tabular-nums; }
 .pcard.active .rest { color: var(--accent); }
 .pcard .meta { display: flex; justify-content: center; gap: 12px; font-size: 0.72rem; color: var(--muted); }
 .pcard .meta b { color: var(--text); font-variant-numeric: tabular-nums; }
@@ -781,7 +793,7 @@ h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; colo
 /* Kleine Handys (z. B. 360x800): eine Zeile Verlauf genügt, Hauptsache
    das Tastenfeld bleibt vollständig sichtbar. */
 @media (max-height: 820px) and (max-width: 699px) and (orientation: portrait) {
-  .pcard .rest { font-size: 2.4rem; }
+  .pcard .rest-zeile { font-size: 2.4rem; }
   .pcard { padding: 8px; }
   .keypad button { min-height: 46px; font-size: 1.25rem; }
   .num-grid button { min-height: 44px; }
@@ -799,7 +811,7 @@ h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; colo
   .fin-kacheln { margin-bottom: 6px; }
   .fin-kacheln .fk { min-height: 44px; font-size: 1.4rem; }
   .scoreboard { margin-bottom: 6px; }
-  .scoreboard.viele .pcard .rest { font-size: clamp(1.6rem, 4.5vh, 2.4rem); }
+  .scoreboard.viele .pcard .rest-zeile { font-size: clamp(1.6rem, 4.5vh, 2.4rem); }
   .quick-row { margin-bottom: 6px; }
   .quick-row button { min-height: 38px; padding: 6px 0; }
   .display-row { min-height: 30px; margin-bottom: 4px; }
@@ -843,7 +855,7 @@ h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; colo
   .cr-score { font-size: 1.4rem; }
   .rtw-board { flex: 1; min-height: 0; }
   .rtw-row .rw-target { font-size: clamp(2rem, 5vh, 3.4rem); }
-  .pcard .rest { font-size: 4.6rem; }
+  .pcard .rest-zeile { font-size: 4.6rem; }
   .pcard .pname { font-size: 1.25rem; }
   .pcard .legs, .pcard .meta { font-size: 0.85rem; }
   .checkout-bar { min-height: 60px; }
@@ -893,7 +905,7 @@ h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; colo
   .screen.center.active { min-height: calc(100dvh - 24px); }
   /* Der Reststand ist die Zahl, die aus zwei Metern lesbar sein muss. */
   .pcard { min-height: 0; }
-  .pcard .rest { font-size: clamp(3.6rem, 9vh, 6.5rem); }
+  .pcard .rest-zeile { font-size: clamp(3.6rem, 9vh, 6.5rem); }
   .checkout-bar .chip { font-size: clamp(1.15rem, 2.6vh, 1.9rem); padding: 8px 16px; }
   .checkout-bar .label { font-size: 0.95rem; }
   .pad .num-grid, .pad .keypad { max-height: min(560px, 100%); }
@@ -947,7 +959,7 @@ h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; colo
   .icon-btn { width: 44px; height: 44px; font-size: 1.2rem; }
   .game-title { font-size: 0.8rem; }
   .pcard { padding: 4px 8px; }
-  .pcard .rest { font-size: clamp(1.9rem, 9vh, 2.6rem); margin: 0; }
+  .pcard .rest-zeile { font-size: clamp(1.9rem, 9vh, 2.6rem); margin: 0; }
   .pcard .legs { display: none; }
   .pcard .meta { font-size: 0.68rem; }
   .checkout-bar { min-height: 34px; padding: 4px; margin-bottom: 5px; }
@@ -1622,14 +1634,14 @@ button, input, select, textarea { font-family: inherit; }
    statt hinter die Eingabe zu rutschen. */
 .game-main { overflow: hidden; }
 .scoreboard.viele .pcard { padding: 6px 8px; min-height: 0; }
-.scoreboard.viele .pcard .rest { font-size: clamp(1.9rem, 5vh, 3.2rem); margin: 1px 0 0; }
+.scoreboard.viele .pcard .rest-zeile { font-size: clamp(1.9rem, 5vh, 3.2rem); margin: 1px 0 0; }
 .scoreboard.viele .pcard .pname { font-size: 0.85rem; }
 .scoreboard.viele .pcard .legs { display: none; }
 .scoreboard.viele .pcard .meta { font-size: 0.66rem; gap: 8px; }
 /* Am iPad haben vier Kacheln Platz: hoeher, Reste in Plakatnaehe. */
 @media (min-width: 700px) {
   .scoreboard.viele .pcard { min-height: clamp(120px, 21vh, 220px); padding: 10px; }
-  .scoreboard.viele .pcard .rest { font-size: clamp(2.6rem, 9vh, 4.4rem); }
+  .scoreboard.viele .pcard .rest-zeile { font-size: clamp(2.6rem, 9vh, 4.4rem); }
   .scoreboard.viele .pcard .pname { font-size: 1.05rem; }
   .scoreboard.viele .pcard .meta { font-size: 0.82rem; gap: 10px; }
 }
@@ -2082,12 +2094,12 @@ button, input, select, textarea { font-family: inherit; }
 #screen-game.turnier .pcard {
   display: flex; flex-direction: column; justify-content: center; min-height: 0;
 }
-#screen-game.turnier .pcard .rest {
+#screen-game.turnier .pcard .rest-zeile {
   font-size: clamp(4rem, min(26vw, 34vh), 16rem);
   margin: 0;
 }
 /* Ab drei Spielern (Schnelles Spiel) müssen vier Karten aufs Bild. */
-#screen-game.turnier .scoreboard.viele .pcard .rest {
+#screen-game.turnier .scoreboard.viele .pcard .rest-zeile {
   font-size: clamp(2.6rem, min(16vw, 18vh), 8rem);
 }
 /* Auch Name und Dartzahl müssen von der Abwurflinie aus lesbar sein. */
@@ -2184,7 +2196,7 @@ button, input, select, textarea { font-family: inherit; }
 #screen-game.turnier.verlauf #history { display: grid; flex: 1 1 auto; min-height: 88px; }
 #screen-game.turnier.verlauf .scoreboard { flex: 0 0 auto; }
 #screen-game.turnier.verlauf .pcard { padding: 8px 10px; }
-#screen-game.turnier.verlauf .pcard .rest { font-size: 2.4rem; }
+#screen-game.turnier.verlauf .pcard .rest-zeile { font-size: 2.4rem; }
 #screen-game.turnier.verlauf .pcard .meta { display: none; }
 #screen-game.turnier.verlauf .pcard .pfinish { display: none; }
 #screen-game.turnier.verlauf .input-area { display: none; }
@@ -2201,7 +2213,7 @@ button, input, select, textarea { font-family: inherit; }
   #screen-game.turnier .game-body { flex-direction: column; }
   #screen-game.turnier .game-main { flex: 1 1 auto; min-height: 0; }
   #screen-game.turnier .input-area { flex: none; display: block; margin-top: 0; }
-  #screen-game.turnier .pcard .rest { font-size: clamp(4rem, min(20vw, 38vh), 18rem); }
+  #screen-game.turnier .pcard .rest-zeile { font-size: clamp(4rem, min(20vw, 38vh), 18rem); }
 }
 /* Auch am flachen Handy quer zählt im Turnier-Modus nur die Anzeige. */
 @media (orientation: landscape) and (max-height: 560px) {
@@ -2591,7 +2603,7 @@ button, input, select, textarea { font-family: inherit; }
 /* Solo-Spiel (ein Spieler): eine grosse Karte statt einer halb leeren
    Zweierreihe, darunter Finish-Kaestchen und der Verlauf mittig. */
 #scoreboard.solo { grid-template-columns: 1fr; }
-#scoreboard.solo .pcard .rest { font-size: 4.6rem; }
+#scoreboard.solo .pcard .rest-zeile { font-size: 4.6rem; }
 #screen-game.solo #checkout-bar { text-align: center; }
 /* Der Verlauf nutzt allein die volle Breite seiner Spalte - am iPad
    fuellt er die linke Haelfte, am Handy ohnehin alles. */
@@ -2816,4 +2828,82 @@ body.am-board #screen-game.turnier.active,
 body.am-board #screen-bulloff.turnier.active {
   padding-left: max(12px, env(safe-area-inset-left, 0px));
   padding-right: max(12px, env(safe-area-inset-right, 0px));
+}
+
+/* ================= Spielbild wie ein Scorer am Board =================
+ * Die Spieler stehen oben nebeneinander in einer Reihe (zwei, drei oder
+ * vier Felder), darunter nimmt das Tastenfeld die ganze Resthoehe. Je
+ * Spieler: oben der Average, gross der Rest mit der letzten Aufnahme
+ * daneben ("345 | 60"), darunter Name und Legs. Den Wurfverlauf gibt es
+ * im Spielbild nicht mehr -- am Abend interessiert niemanden, was vor
+ * sieben Runden geworfen wurde; korrigiert wird per Tipp auf die kleine
+ * Zahl. Im Turnier-Modus (Board) zeigt Shift die Liste weiterhin. */
+.scoreboard { grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr)); }
+#screen-game:not(.turnier) #history { display: none; }
+#screen-game .pcard .meta { order: 0; }
+.pcard .letzte-box {
+  display: inline-grid; align-self: center; margin-left: 0.14em; padding-left: 0.32em;
+  border-left: 0.06em solid var(--line); line-height: 1; min-height: 0.6em;
+}
+.pcard .letzte-box > * { grid-area: 1 / 1; }
+.pcard.active .letzte-box { border-left-color: var(--accent); }
+.pcard .letzte-box.tap { cursor: pointer; }
+.pcard .letzte, .pcard .letzte-alt {
+  font-size: 0.42em; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums;
+  line-height: 1; white-space: nowrap;
+}
+.pcard .letzte.bust, .pcard .letzte-alt.bust { color: var(--red); text-decoration: line-through; }
+/* Drehrad: die alte Zahl faehrt nach oben aus dem Bild und verblasst
+   langsam, die neue schiebt von unten nach. */
+.pcard .letzte.neu { animation: letzte-rein 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.pcard .letzte-alt { animation: letzte-raus 1.4s cubic-bezier(0.3, 0, 0.5, 1) both; pointer-events: none; }
+@keyframes letzte-rein {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes letzte-raus {
+  0% { transform: none; opacity: 1; }
+  40% { transform: translateY(-110%); opacity: 0.55; }
+  100% { transform: translateY(-140%); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pcard .letzte.neu { animation: none; }
+  .pcard .letzte-alt { display: none; }
+}
+
+/* Das Tastenfeld fuellt den Platz unter den Spielern -- statt des
+   Verlaufs. Auf dem Handy schrumpfen im Notfall die Spieler (und
+   scrollen), nie die Tasten. Der Turnier-Modus behaelt sein Board-Layout. */
+#screen-game:not(.turnier) .game-main { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+#screen-game:not(.turnier) .input-area {
+  flex: 1 0 auto; min-height: 0; margin-top: 0; display: flex; flex-direction: column;
+}
+#screen-game:not(.turnier) .pad:not(.hidden) { flex: 1 1 auto; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+#screen-game:not(.turnier) #pad-total .keypad,
+#screen-game:not(.turnier) #pad-darts .num-grid { flex: 1 1 auto; min-height: 0; grid-auto-rows: 1fr; max-height: none; }
+#screen-game:not(.turnier) #pad-darts .mult-row { flex: none; height: auto; }
+#screen-game:not(.turnier) .quick-row,
+#screen-game:not(.turnier) .display-row,
+#screen-game:not(.turnier) .mult-row { margin-bottom: 0; }
+/* Schnellwahl als eine Zeile ueber die ganze Breite, sobald Platz ist. */
+@media (min-width: 700px) {
+  #screen-game:not(.turnier) .quick-row { display: flex; gap: 6px; }
+  #screen-game:not(.turnier) .quick-row button { flex: 1 1 0; min-width: 0; }
+}
+/* Auch quer (iPad): Spieler oben, Tasten unten -- nicht mehr nebeneinander. */
+@media (orientation: landscape) and (min-width: 700px) {
+  #screen-game:not(.turnier) .game-body { flex-direction: column; gap: 0; }
+  #screen-game:not(.turnier) .game-main { flex: 0 1 auto; }
+  #screen-game:not(.turnier) .pcard { min-height: clamp(120px, 24vh, 240px); display: flex; flex-direction: column; justify-content: center; }
+  #screen-game:not(.turnier) .pcard .rest-zeile { font-size: clamp(3rem, 11vh, 5.6rem); }
+  #screen-game:not(.turnier) .keypad button { min-height: 0; font-size: clamp(1.4rem, 4vh, 2rem); }
+  #screen-game:not(.turnier) .score-display { font-size: clamp(2.2rem, 6vh, 3.6rem); }
+  #screen-game:not(.turnier) .display-row { min-height: 0; }
+}
+/* Am Handy: drei oder vier Spieler bleiben in einer Reihe, aber kompakt. */
+@media (max-width: 699px) {
+  .scoreboard.viele .pcard .rest-zeile { font-size: clamp(1.5rem, 6.5vw, 2.4rem); }
+  .scoreboard.viele .pcard .pname { font-size: 0.72rem; }
+  .scoreboard.viele .pcard .pname .av.sm { display: none; }
+  .scoreboard.viele .pcard .legs { display: block; font-size: 0.62rem; }
 }

@@ -141,7 +141,7 @@
     return {
       v: 2,
       screen: 'setup',
-      settings: { start: 501, bestOf: 1, dartModeFrom: 170, cricketScoring: 1, finisherTo: 5, rtwBoost: 1, turnierModus: 0 },
+      settings: { start: 501, bestOf: 1, dartModeFrom: 170, cricketScoring: 1, finisherTo: 5, rtwBoost: 1, turnierModus: 0, quickModus: 0, quickSaetze: 1, quickLegs: 1 },
       mode: '501',
       game: null,
       profiles: DEFAULT_PLAYERS.map(function (n, i) {
@@ -195,6 +195,11 @@
       if (s.settings.rtwBoost === undefined) s.settings.rtwBoost = 1;
       if (FIN_TARGETS.indexOf(s.settings.finisherTo) < 0) s.settings.finisherTo = 5;
       if (s.settings.online === undefined) s.settings.online = 0;
+      /* Spieldauer des Schnellen Spiels (Saetze/Legs) kam spaeter dazu --
+         Altbestand spielt weiter ein Leg. */
+      if (s.settings.quickModus !== 1) s.settings.quickModus = 0;
+      if (!(s.settings.quickSaetze >= 1)) s.settings.quickSaetze = 1;
+      if (!(s.settings.quickLegs >= 1)) s.settings.quickLegs = 1;
       s.profiles.forEach(function (p, i) { if (typeof p.hue !== 'number') p.hue = HUES[i % HUES.length]; });
       /* Liga-Stände aus der ersten Fassung (vor dem Bogen-Ausbau) kennen
          posH/posG, die Spielerlisten und die neuen Match-Felder nicht –
@@ -746,6 +751,7 @@
     liveNamenUebernehmen(neu);
     S.game = neu;
     UI.darts = []; UI.input = ''; UI.error = '';
+    UI.aufnahmeZeit = Date.now();
     /* Halbfertige Dialoge beziehen sich auf den alten Stand. */
     if (UI.overlay && (UI.overlay.type === 'checkout-darts' || UI.overlay.type === 'edit-visit')) UI.overlay = null;
     var wer = spiel.geaendertVonName || 'Dein Mitspieler';
@@ -896,6 +902,69 @@
 
   function activeLeg(match) { return match.legs[match.legs.length - 1] || null; }
 
+  /* ===== Spieldauer: Saetze und Legs im Schnellen Spiel =====
+     Ein Schnelles Spiel kann ueber mehrere Legs und Saetze gehen. Die Legs
+     bleiben dabei eine flache Liste -- Undo, Statistik und Online-Abgleich
+     kennen nichts anderes. Welcher Satz gerade laeuft, wird daraus
+     nachgerechnet: sobald einer die Legs fuer den Satz hat, beginnt der
+     naechste. "First to N" und "Best of 2N-1" sind dasselbe Ziel; gespeichert
+     wird die Best-of-Zahl (bestOf fuer Legs je Satz, saetzeBestOf fuer die
+     Saetze), die Schreibweise (spieldauer) nur fuer die Anzeige. */
+  var QUICK_MAX = 9;   // hoechstens "First to 9" bzw. "Best of 17"
+  function bestOfAus(modus, n) { return modus === 1 ? n : 2 * n - 1; }
+  function matchSaetzeZuGewinnen(match) {
+    return match && match.saetzeBestOf ? Math.floor(match.saetzeBestOf / 2) + 1 : 1;
+  }
+  /* Nur fuer Schnelle Spiele gedacht: die tragen bestOf immer selbst. */
+  function mehrereLegs(match) {
+    return !!match && ((match.bestOf || 1) > 1 || (match.saetzeBestOf || 1) > 1);
+  }
+  function satzStand(match) {
+    var gewinnLegs = matchLegsToWin(match);
+    var gewinnSaetze = matchSaetzeZuGewinnen(match);
+    var saetze = {}, legs = {};
+    match.p.forEach(function (id) { saetze[id] = 0; legs[id] = 0; });
+    var satzNr = 1, legNr = 1, satzZu = false, sieger = null;
+    match.legs.forEach(function (l) {
+      if (!l.winner || sieger) return;
+      satzZu = false;
+      legs[l.winner]++; legNr++;
+      if (legs[l.winner] >= gewinnLegs) {
+        saetze[l.winner]++;
+        satzZu = true;
+        if (saetze[l.winner] >= gewinnSaetze) sieger = l.winner;
+        else {
+          match.p.forEach(function (id) { legs[id] = 0; });
+          satzNr++; legNr = 1;
+        }
+      }
+    });
+    return { saetze: saetze, legs: legs, satzNr: satzNr, legNr: legNr, satzZu: satzZu,
+      gewinnLegs: gewinnLegs, gewinnSaetze: gewinnSaetze, sieger: sieger };
+  }
+  /* "First to 2 Sätze à 3 Legs" bzw. "Best of 5 Legs" -- so, wie es
+     eingestellt wurde. */
+  function dauerText(match) {
+    var d = match.spieldauer || { modus: 1, saetze: match.saetzeBestOf || 1, legs: match.bestOf || 1 };
+    var w = d.modus === 1 ? 'Best of ' : 'First to ';
+    if (matchSaetzeZuGewinnen(match) > 1) return w + d.saetze + ' Sätze à ' + d.legs + (d.legs === 1 ? ' Leg' : ' Legs');
+    return w + d.legs + (d.legs === 1 ? ' Leg' : ' Legs');
+  }
+  /* Stand eines Spielers, kurz: "Sätze 1 · Legs 2" oder nur "Legs 2". */
+  function kurzStand(st, pid) {
+    return (st.gewinnSaetze > 1 ? 'Sätze ' + st.saetze[pid] + ' · ' : '') + 'Legs ' + st.legs[pid];
+  }
+  /* Stand aller Spieler: bei zweien "2:1", ab dreien mit Namen. */
+  function standZeile(match, st, nurSaetze) {
+    st = st || satzStand(match);
+    var zeile = function (obj) {
+      return match.p.length === 2 ? obj[match.p[0]] + ':' + obj[match.p[1]]
+        : match.p.map(function (id) { return esc(pname(id)) + ' ' + obj[id]; }).join(' · ');
+    };
+    if (nurSaetze) return 'Sätze ' + zeile(st.saetze);
+    return (st.gewinnSaetze > 1 ? 'Sätze ' + zeile(st.saetze) + ' · ' : '') + 'Legs ' + zeile(st.legs);
+  }
+
   /* Die Startpunktzahl steht am Leg selbst. Alte Stände haben sie nicht –
      dort gilt weiter die Turniereinstellung. */
   function legStart(leg) {
@@ -1039,6 +1108,8 @@
     var visit = { p: pid, s: isBust ? 0 : score, d: darts, b: !!isBust, c: !!isCheckout, o: isBust ? score : 0 };
     if (k && k.length) visit.k = k.map(function (x) { return { m: x.m, n: x.n }; });
     leg.visits.push(visit);
+    /* Zeitstempel fuer die Drehrad-Animation der letzten Aufnahme (renderGame). */
+    UI.aufnahmeZeit = Date.now();
 
     /* Im Ligaspiel wird nicht gefeiert - der Schreiber ist Schiedsrichter,
        und ein Vollbild-Loewe mitten im Einzel gegen ein fremdes Team waere
@@ -1053,7 +1124,8 @@
 
     if (isCheckout) {
       leg.winner = pid;
-      if (legsWon(m, pid) >= matchLegsToWin(m)) {
+      var st = satzStand(m);
+      if (st.sieger === pid) {
         m.done = true;
         m.winner = pid;
         m.at = Date.now();
@@ -1082,7 +1154,8 @@
           window.DartSync.turnier.ergebnis(m);
         }
       } else {
-        UI.overlay = { type: 'leg-done', pid: pid };
+        /* Ist damit ein ganzer Satz zu, sagt der Dialog das auch. */
+        UI.overlay = { type: 'leg-done', pid: pid, satz: st.satzZu };
       }
       /* Das letzte Einzel des Ligaspiels stempelt die Endzeit für den
          Spielberichtsbogen. */
@@ -1979,7 +2052,10 @@
     if (kind === 'quick') {
       S.game.p = S.lineup.slice();
       S.game.start = S.settings.start;
-      S.game.bestOf = 1;
+      var qd = { modus: S.settings.quickModus === 1 ? 1 : 0, saetze: S.settings.quickSaetze || 1, legs: S.settings.quickLegs || 1 };
+      S.game.spieldauer = qd;
+      S.game.bestOf = bestOfAus(qd.modus, qd.legs);
+      S.game.saetzeBestOf = bestOfAus(qd.modus, qd.saetze);
       S.game.starter = S.lineup[0];
       S.game.legs = [];
     }
@@ -2025,10 +2101,11 @@
          Average, First 9, Doppelquote und Rekorde daraus ohne jede
          Sonderbehandlung. */
       eintrag.lineup = g.p.slice();
-      eintrag.settings = { start: g.start };
+      eintrag.settings = { start: g.start, bestOf: g.bestOf || 1 };
       eintrag.matches = [{
         id: g.id, p: g.p.slice(), starter: g.starter, legs: g.legs,
-        done: true, winner: g.winner, at: eintrag.at, start: g.start
+        done: true, winner: g.winner, at: eintrag.at, start: g.start,
+        bestOf: g.bestOf || 1, saetzeBestOf: g.saetzeBestOf || 1, spieldauer: g.spieldauer || null
       }];
     } else {
       eintrag.scoring = g.scoring;
@@ -2435,6 +2512,8 @@
        zwei getrennte Karten wären zwei Bedienelemente für dieselbe Einstellung. */
     $('settings-501').classList.toggle('hidden', S.mode !== '501' && S.mode !== 'quick');
     $('setting-bestof').classList.toggle('hidden', S.mode !== '501');
+    $('setting-quick-dauer').classList.toggle('hidden', S.mode !== 'quick');
+    if (S.mode === 'quick') renderQuickDauer();
     document.querySelector('[data-action="start-game"]').textContent = 'Spiel starten';
 
     var runningGame = !!S.game;
@@ -2464,6 +2543,28 @@
       var done = sum(S.matches, function (m) { return m.done ? 1 : 0; });
       $('resume-info').textContent = done + ' von ' + plural(S.matches.length, 'Spiel', 'Spielen') + ' gespielt';
     }
+  }
+
+  /* Spieldauer im Setup: First to / Best of, dazu je ein Zaehler fuer
+     Saetze und Legs. Bei Best of sind nur ungerade Zahlen sinnvoll, darum
+     springt der Zaehler dort in Zweierschritten. */
+  function renderQuickDauer() {
+    var best = S.settings.quickModus === 1;
+    var sz = S.settings.quickSaetze, lg = S.settings.quickLegs;
+    $('quick-saetze').textContent = sz === 1 ? '1 Satz' : sz + ' Sätze';
+    $('quick-legs').textContent = lg === 1 ? '1 Leg' : lg + ' Legs';
+    var max = best ? 2 * QUICK_MAX - 1 : QUICK_MAX;
+    document.querySelectorAll('#setting-quick-dauer [data-action="quick-step"]').forEach(function (b) {
+      var wert = S.settings[b.getAttribute('data-key')];
+      b.disabled = Number(b.getAttribute('data-dir')) < 0 ? wert <= 1 : wert >= max;
+    });
+    var gewinnLegs = Math.floor(bestOfAus(best ? 1 : 0, lg) / 2) + 1;
+    var gewinnSaetze = Math.floor(bestOfAus(best ? 1 : 0, sz) / 2) + 1;
+    $('quick-dauer-hint').textContent = sz === 1 && lg === 1
+      ? 'Ein Leg – wer zuerst auscheckt, gewinnt.'
+      : sz === 1
+        ? 'Gewonnen hat, wer zuerst ' + gewinnLegs + ' Legs hat.'
+        : 'Ein Satz geht an den, der zuerst ' + plural(gewinnLegs, 'Leg', 'Legs') + ' hat – das Spiel an den, der zuerst ' + plural(gewinnSaetze, 'Satz', 'Sätze') + ' hat.';
   }
 
   /* Im Liga-Betrieb zaehlt der buergerliche Name (SWO: keine Kuenstlernamen).
@@ -3425,10 +3526,15 @@
     var ohneFinish = !schnell && S.tour && S.tour.liga && !S.tour.liga.finish;
     /* Im Ligaspiel laufen die buergerlichen Namen mit - auch am Board. */
     var spielerName = !schnell && S.tour && S.tour.liga ? ligaName : pname;
+    /* Ueber mehrere Legs oder Saetze zaehlt der Kopf Satz und Leg mit,
+       und die Karten zeigen den Stand statt der Dartzahl. */
+    var qSt = schnell && mehrereLegs(m) ? satzStand(m) : null;
     if (schnell) {
       $('game-match-label').textContent = 'Schnelles Spiel' + liveLabel(m);
-      $('game-leg-label').textContent = plural(m.p.length, 'Spieler', 'Spieler') + ' · ' +
-        matchStart(m) + ' Double Out';
+      $('game-leg-label').textContent = qSt
+        ? (qSt.gewinnSaetze > 1 ? 'Satz ' + qSt.satzNr + ' · ' : '') + 'Leg ' + (m.done ? qSt.legNr - 1 : qSt.legNr) +
+          ' · ' + dauerText(m) + ' · ' + matchStart(m)
+        : plural(m.p.length, 'Spieler', 'Spieler') + ' · ' + matchStart(m) + ' Double Out';
     } else {
       var idx = S.matches.indexOf(m);
       $('game-match-label').textContent = 'Spiel ' + (idx + 1) + ' von ' + S.matches.length;
@@ -3448,6 +3554,22 @@
     $('scoreboard').classList.toggle('viele', m.p.length > 2);
     $('scoreboard').classList.toggle('solo', m.p.length === 1);
     $('screen-game').classList.toggle('solo', m.p.length === 1);
+    /* Alle Spieler nebeneinander in einer Reihe -- wie ein Scorer am Board. */
+    $('scoreboard').style.setProperty('--n', m.p.length);
+    /* Die letzte Aufnahme jedes Spielers steht klein neben seinem Rest
+       ("345 | 60") und bleibt stehen, bis er wieder wirft. Kommt eine neue,
+       rutscht die alte wie in einem Drehrad nach oben und verblasst, die
+       neue schiebt von unten nach. Weil jeder Tastendruck neu zeichnet,
+       laeuft die Animation mit negativer Verzoegerung an der Stelle weiter,
+       an der sie gerade ist -- sonst finge sie jedes Mal von vorn an. */
+    var letzteIdx = {}, vorletzteIdx = {};
+    leg.visits.forEach(function (v, vi) {
+      if (letzteIdx[v.p] !== undefined) vorletzteIdx[v.p] = letzteIdx[v.p];
+      letzteIdx[v.p] = vi;
+    });
+    var neuesteVisit = leg.visits.length - 1;
+    var seitAufnahme = Date.now() - (UI.aufnahmeZeit || 0);
+    var DREH_MS = 1400;
     $('scoreboard').innerHTML = m.p.map(function (pid) {
       var rest = remainingIn(leg, pid) - (pid === active ? pendingSum : 0);
       var darts = dartsIn(leg, pid) + (pid === active ? UI.darts.length : 0);
@@ -3457,7 +3579,7 @@
       if (UI.turnier && turnierErlaubt()) {
         /* Was geworfen wurde, steht in den Wurflisten unten links und
            rechts – in der Karte bleibt nur der Leg-Stand. */
-        zeile = schnell ? '' : 'Legs ' + legsWon(m, pid);
+        zeile = schnell ? (qSt ? kurzStand(qSt, pid) : '') : 'Legs ' + legsWon(m, pid);
         meta = '<span>Ø <b>' + avg + '</b></span>';
         /* Der Finish-Weg erscheint, sobald einer ansteht – bei jedem Spieler
            im eigenen Kasten, auch während der andere wirft: so kann man sich
@@ -3470,14 +3592,35 @@
       } else {
         /* Im Schnellen Spiel gibt es keine Legs zu zählen – dort steht die
            geworfene Dartzahl, die sagt in dem Moment mehr. */
-        zeile = schnell ? plural(darts, 'Dart', 'Darts') : 'Legs ' + legsWon(m, pid);
-        meta = '<span>Ø <b>' + avg + '</b></span><span>Darts <b>' + darts + '</b></span>';
+        zeile = schnell ? (qSt ? kurzStand(qSt, pid) : plural(darts, 'Dart', 'Darts')) : 'Legs ' + legsWon(m, pid);
+        /* Oben im Feld steht nur der Average -- die Dartzahl steht in der
+           Zeile unter dem Namen, solange es keine Legs zu zaehlen gibt. */
+        meta = '<span>Ø <b>' + avg + '</b></span>';
+      }
+      var letzte = '';
+      var li = letzteIdx[pid];
+      if (li !== undefined) {
+        var lv = leg.visits[li];
+        var frisch = li === neuesteVisit && seitAufnahme >= 0 && seitAufnahme < DREH_MS;
+        var verz = frisch ? ' style="animation-delay:-' + seitAufnahme + 'ms"' : '';
+        var aenderbar = !lv.c && !m.done;
+        var alt = '';
+        if (frisch && vorletzteIdx[pid] !== undefined) {
+          var av = leg.visits[vorletzteIdx[pid]];
+          alt = '<span class="letzte-alt' + (av.b ? ' bust' : '') + '"' + verz + '>' + (av.b ? av.o : av.s) + '</span>';
+        }
+        /* Ein Tipp auf die Zahl korrigiert die Aufnahme -- das war frueher
+           die Aufgabe des Wurfverlaufs. */
+        letzte = '<span class="letzte-box' + (aenderbar ? ' tap' : '') + '"' +
+          (aenderbar ? ' data-action="edit-visit" data-i="' + li + '" role="button" tabindex="0" aria-label="Letzte Aufnahme korrigieren"' : '') + '>' +
+          alt + '<span class="letzte' + (lv.b ? ' bust' : '') + (frisch ? ' neu' : '') + '"' + verz + '>' +
+          (lv.b ? lv.o : lv.s) + '</span></span>';
       }
       return '<div class="pcard ' + (pid === active ? 'active' : '') + '">' +
+        '<div class="meta">' + meta + '</div>' +
+        '<div class="rest-zeile"><span class="rest">' + rest + '</span>' + letzte + '</div>' +
         '<div class="pname">' + avatarHTML(profile(pid), 'sm') + esc(spielerName(pid)) + '</div>' +
-        '<div class="legs">' + zeile + '</div>' +
-        '<div class="rest">' + rest + '</div>' +
-        '<div class="meta">' + meta + '</div>' + pfinish +
+        '<div class="legs">' + zeile + '</div>' + pfinish +
         '</div>';
     }).join('');
 
@@ -4487,17 +4630,20 @@
       var qLeg = qm.legs[qm.legs.length - 1];
 
       var qSolo = qm.p.length < 2;
+      var qSSt = mehrereLegs(qm) ? satzStand(qm) : null;
       box = '<div class="sum-head"><div class="big-emoji">' + (qSolo ? '🎯' : '🏆') + '</div>' +
         '<h2 class="sum-title">' + esc(pname(qm.winner)) + (qSolo ? ' hat ausgemacht' : ' gewinnt') + '</h2>' +
         '<div class="muted">Schnelles Spiel · ' + qStart + ' Double Out · ' +
-          (qSolo ? 'Solo' : plural(qm.p.length, 'Spieler', 'Spieler')) + '</div></div>' +
+          (qSolo ? 'Solo' : plural(qm.p.length, 'Spieler', 'Spieler')) +
+          (qSSt ? ' · ' + dauerText(qm) : '') + '</div>' +
+        (qSSt && !qSolo ? '<div class="muted sum-stand">' + standZeile(qm, qSSt) + '</div>' : '') + '</div>' +
         '<div class="sum-cards">' + qm.p.map(function (id) {
           var st = qMap[id];
           var rest = qLeg ? remainingIn(qLeg, id) : 0;
           return '<div class="card sum-card ' + (qm.winner === id ? 'win' : '') + '">' +
             '<div class="sum-who">' + avatarHTML(profile(id), 'md') +
               '<div><div class="nm">' + esc(pname(id)) + '</div>' +
-              '<div class="muted">' + (qm.winner === id ? 'ausgecheckt' : 'Rest ' + rest) + '</div></div></div>' +
+              '<div class="muted">' + (qSSt ? kurzStand(qSSt, id) : qm.winner === id ? 'ausgecheckt' : 'Rest ' + rest) + '</div></div></div>' +
             statRow('3-Dart-Average', st.darts ? st.avg.toFixed(2) : '–') +
             statRow('First 9', st.first9Darts ? st.first9.toFixed(2) : '–') +
             statRow('Höchste Aufnahme', st.highScore || '–') +
@@ -4715,9 +4861,12 @@
         if (ldWahl < 0) return sonst;
         return i === ldWahl ? 'btn primary full wahl' : 'btn ghost full';
       };
-      html = '<div class="big-emoji">🎯</div><h3>Leg an ' + esc(pname(o.pid)) + '</h3>' +
-        '<p>Stand: ' + legsWon(m1, m1.p[0]) + ':' + legsWon(m1, m1.p[1]) + '</p>' +
-        '<button class="' + ldKl(0, 'btn primary full') + '" data-action="ov-next-leg">Nächstes Leg</button>' +
+      var ldStand = m1.kind === 'quick'
+        ? standZeile(m1, null, !!o.satz)
+        : legsWon(m1, m1.p[0]) + ':' + legsWon(m1, m1.p[1]);
+      html = '<div class="big-emoji">🎯</div><h3>' + (o.satz ? 'Satz' : 'Leg') + ' an ' + esc(pname(o.pid)) + '</h3>' +
+        '<p>Stand: ' + ldStand + '</p>' +
+        '<button class="' + ldKl(0, 'btn primary full') + '" data-action="ov-next-leg">' + (o.satz ? 'Nächster Satz' : 'Nächstes Leg') + '</button>' +
         '<button class="' + ldKl(1, 'btn ghost full') + '" data-action="undo">Eingabe rückgängig</button>' +
         (ldWahl >= 0 ? '<p class="te-hint">↑ ↓ / Tab · wählen &nbsp;&nbsp; Enter · bestätigen &nbsp;&nbsp; Löschen · direkt zurück</p>' : '');
     } else if (o.type === 'match-done') {
@@ -5013,7 +5162,8 @@
       var gdSolo = S.game && S.game.kind === 'quick' && S.game.p && S.game.p.length < 2;
       html = '<div class="big-emoji">' + (gdSolo ? '🎯' : '🏆') + '</div><h3>' +
         (gdSolo ? 'Ausgemacht, ' : 'Glückwunsch, ') + esc(pname(o.pid)) + '!</h3>' +
-        '<p>' + (S.game ? kindName(S.game.kind) : '') + '</p>' +
+        '<p>' + (S.game ? kindName(S.game.kind) : '') +
+          (S.game && S.game.kind === 'quick' && !gdSolo && mehrereLegs(S.game) ? ' · ' + standZeile(S.game) : '') + '</p>' +
         '<button class="' + gdKl(0, 'btn primary full') + '" data-action="open-summary" data-kind="' + (S.game ? S.game.kind : 'cricket') + '" data-id="current">Weiter zur Spielstatistik</button>' +
         '<button class="' + gdKl(1, 'btn ghost full') + '" data-action="undo-game">Letzten Dart zurück</button>' +
         (gdWahl >= 0 ? '<p class="te-hint">↑ ↓ / Tab · wählen &nbsp;&nbsp; Enter · bestätigen</p>' : '');
@@ -6195,6 +6345,15 @@
       case 'ov-next-leg':
         UI.overlay = null; render();
         break;
+      case 'quick-step': {
+        var qk = el.getAttribute('data-key');
+        var qBest = S.settings.quickModus === 1;
+        var qSchritt = (qBest ? 2 : 1) * Number(el.getAttribute('data-dir'));
+        var qMax = qBest ? 2 * QUICK_MAX - 1 : QUICK_MAX;
+        S.settings[qk] = Math.max(1, Math.min(qMax, (S.settings[qk] || 1) + qSchritt));
+        save(); render();
+        break;
+      }
       case 'ov-next-match': {
         UI.overlay = null;
         var next = nextOpenMatch();
@@ -6422,7 +6581,15 @@
     var seg = ev.target.closest('[data-setting] button');
     if (seg) {
       var key = seg.parentElement.getAttribute('data-setting');
-      S.settings[key] = Number(seg.getAttribute('data-value'));
+      var wert = Number(seg.getAttribute('data-value'));
+      /* Schreibweise der Spieldauer gewechselt: dasselbe Ziel in der anderen
+         Zaehlung -- First to 2 ist Best of 3. */
+      if (key === 'quickModus' && wert !== S.settings.quickModus) {
+        ['quickSaetze', 'quickLegs'].forEach(function (k) {
+          S.settings[k] = wert === 1 ? 2 * S.settings[k] - 1 : Math.floor(S.settings[k] / 2) + 1;
+        });
+      }
+      S.settings[key] = wert;
       save(); render();
       return;
     }
@@ -6843,6 +7010,7 @@
       remainingIn: remainingIn,
       activeLeg: activeLeg,
       activePlayer: activePlayer,
+      satzStand: satzStand,
       currentMatch: currentMatch,
       game: function () { return S.game; },
       cricketState: function () { return cricketState(S.game); },
