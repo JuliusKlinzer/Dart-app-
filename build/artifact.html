@@ -2845,8 +2845,11 @@ body.am-board #screen-bulloff.turnier.active {
 #screen-game:not(.turnier) #history { display: none; }
 #screen-game .pcard .meta { order: 0; }
 .pcard .letzte-box {
-  display: inline-grid; align-self: center; margin-left: 0.14em; padding-left: 0.32em;
-  border-left: 0.06em solid var(--line); line-height: 1; min-height: 0.6em;
+  display: inline-grid; align-self: center; align-content: center; justify-items: start;
+  margin-left: 0.14em; padding: 0 0.3em 0 0.32em;
+  border-left: 0.06em solid var(--line); line-height: 1;
+  /* Fingerziel: die kleine Zahl ist das einzige Bedienelement zum Korrigieren. */
+  min-height: 44px; min-width: 44px;
 }
 .pcard .letzte-box > * { grid-area: 1 / 1; }
 .pcard.active .letzte-box { border-left-color: var(--accent); }
@@ -5312,7 +5315,7 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
      erst später auffällt. Statt alles dazwischen zurückzunehmen, lässt sich
      der Wert direkt ändern – solange das Leg dadurch schlüssig bleibt. */
   function visitFits(leg, pid) {
-    var rest = tourStart();
+    var rest = legStart(leg);
     for (var i = 0; i < leg.visits.length; i++) {
       var v = leg.visits[i];
       if (v.p !== pid) continue;
@@ -5337,7 +5340,7 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
     if (IMPOSSIBLE[value]) return value + ' ist mit 3 Darts nicht möglich.';
 
     var backup = { s: v.s, b: v.b, o: v.o, k: v.k };
-    var rest = tourStart();
+    var rest = legStart(leg);
     leg.visits.forEach(function (x, i) { if (x.p === v.p && i < idx && !x.b) rest -= x.s; });
     var after = rest - value;
     delete v.k;                       // Einzeldarts passen nach der Korrektur nicht mehr
@@ -5602,7 +5605,7 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
      Rangliste. Gleiche Rechnung wie career(), andere Auswahl. */
   function careerLiga() {
     /* Uebungsspiele (DiensDarts) zaehlen nicht in die Liga-Rangliste. */
-    var lists = S.history.filter(function (h) { return h.liga && !h.liga.uebung && h.matches; })
+    var lists = wertbareHistorie().filter(function (h) { return h.liga && !h.liga.uebung && h.matches; })
       .map(function (h) { return { matches: h.matches, start: (h.settings && h.settings.start) || 501 }; });
     if (S.matches.length && S.tour && S.tour.liga && !S.tour.liga.uebung) lists.push({ matches: S.matches, start: tourStart() });
     var map = collectStats(lists, S.profiles.map(function (p) { return p.id; }));
@@ -5622,7 +5625,7 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
         if (m.done && knownPlayers(m.p)) out.push({ m: m, at: m.at, live: true });
       });
     }
-    S.history.forEach(function (h) {
+    wertbareHistorie().forEach(function (h) {
       if (!h.liga || h.liga.uebung || !h.matches) return;
       h.matches.forEach(function (m) {
         if (m.done && knownPlayers(m.p)) out.push({ m: m, at: h.at });
@@ -6925,7 +6928,7 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
       b.classList.toggle('active', b.getAttribute('data-value') === mode);
     });
 
-    var ligaSpieltage = S.history.filter(function (h) { return h.liga && !h.liga.uebung && h.matches; });
+    var ligaSpieltage = wertbareHistorie().filter(function (h) { return h.liga && !h.liga.uebung && h.matches; });
     var log = allGamesLog().filter(function (row) { return row.kind === mode; });
     var modeName = mode === '501' ? 'Classic' : mode === 'liga' ? 'Liga' : kindName(mode);
     $('boards-sub').textContent = mode === 'liga'

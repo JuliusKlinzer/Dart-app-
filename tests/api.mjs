@@ -717,6 +717,8 @@ async function main() {
     }
     r = await tobi.ruf('GET', '/api/users');
     ok(!r.daten.nutzer.some((n) => n.id === tester_id), 'Tobi sieht das Testkonto nicht im Roster');
+    r = await tester.ruf('GET', '/api/users');
+    ok(r.daten.nutzer.some((n) => n.id === tester_id), 'das Testkonto sieht sich selbst -- sonst verloere es sein Profil');
     r = await julius.ruf('GET', '/api/users');
     const testEintrag = r.daten.nutzer.find((n) => n.id === tester_id);
     ok(!!testEintrag && testEintrag.test === true, 'Julius sieht es -- als Testkonto markiert');
@@ -735,6 +737,8 @@ async function main() {
     ok(!r.daten.spiele.some((s) => s.id === testspiel.id), 'bei Tobi laeuft das Testspiel nie ein');
     r = await julius.ruf('GET', '/api/games?since=' + vorTest);
     ok(r.daten.spiele.some((s) => s.id === testspiel.id), 'bei Julius schon');
+    r = await tester.ruf('GET', '/api/games?since=' + vorTest);
+    ok(r.daten.spiele.some((s) => s.id === testspiel.id), 'und beim Testkonto selbst');
     r = await julius.ruf('DELETE', '/api/games/' + testspiel.id);
     gleich(r.status, 200, 'und er kann es zurueckziehen');
     r = await tobi.ruf('GET', '/api/games?since=' + vorTest);

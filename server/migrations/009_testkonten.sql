@@ -26,5 +26,8 @@ UPDATE games
            + (SELECT nr FROM testspiele t WHERE t.id = games.id)
  WHERE id IN (SELECT id FROM testspiele);
 
-UPDATE counters SET value = (SELECT COALESCE(MAX(seq), 0) FROM games) WHERE name = 'game_seq';
+-- Zaehler nur vorruecken, nie zuruecksetzen: nach einem harten Loeschen
+-- (demo.mjs) liegt MAX(seq) unter dem Zaehler, und ein ruecklaeufiger Zaehler
+-- liesse Clients mit hoeherem Cursor neue Spiele verpassen.
+UPDATE counters SET value = value + (SELECT COUNT(*) FROM testspiele) WHERE name = 'game_seq';
 DROP TABLE testspiele;

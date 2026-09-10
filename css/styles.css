@@ -2842,8 +2842,11 @@ body.am-board #screen-bulloff.turnier.active {
 #screen-game:not(.turnier) #history { display: none; }
 #screen-game .pcard .meta { order: 0; }
 .pcard .letzte-box {
-  display: inline-grid; align-self: center; margin-left: 0.14em; padding-left: 0.32em;
-  border-left: 0.06em solid var(--line); line-height: 1; min-height: 0.6em;
+  display: inline-grid; align-self: center; align-content: center; justify-items: start;
+  margin-left: 0.14em; padding: 0 0.3em 0 0.32em;
+  border-left: 0.06em solid var(--line); line-height: 1;
+  /* Fingerziel: die kleine Zahl ist das einzige Bedienelement zum Korrigieren. */
+  min-height: 44px; min-width: 44px;
 }
 .pcard .letzte-box > * { grid-area: 1 / 1; }
 .pcard.active .letzte-box { border-left-color: var(--accent); }

@@ -1257,7 +1257,7 @@
      erst später auffällt. Statt alles dazwischen zurückzunehmen, lässt sich
      der Wert direkt ändern – solange das Leg dadurch schlüssig bleibt. */
   function visitFits(leg, pid) {
-    var rest = tourStart();
+    var rest = legStart(leg);
     for (var i = 0; i < leg.visits.length; i++) {
       var v = leg.visits[i];
       if (v.p !== pid) continue;
@@ -1282,7 +1282,7 @@
     if (IMPOSSIBLE[value]) return value + ' ist mit 3 Darts nicht möglich.';
 
     var backup = { s: v.s, b: v.b, o: v.o, k: v.k };
-    var rest = tourStart();
+    var rest = legStart(leg);
     leg.visits.forEach(function (x, i) { if (x.p === v.p && i < idx && !x.b) rest -= x.s; });
     var after = rest - value;
     delete v.k;                       // Einzeldarts passen nach der Korrektur nicht mehr
@@ -1547,7 +1547,7 @@
      Rangliste. Gleiche Rechnung wie career(), andere Auswahl. */
   function careerLiga() {
     /* Uebungsspiele (DiensDarts) zaehlen nicht in die Liga-Rangliste. */
-    var lists = S.history.filter(function (h) { return h.liga && !h.liga.uebung && h.matches; })
+    var lists = wertbareHistorie().filter(function (h) { return h.liga && !h.liga.uebung && h.matches; })
       .map(function (h) { return { matches: h.matches, start: (h.settings && h.settings.start) || 501 }; });
     if (S.matches.length && S.tour && S.tour.liga && !S.tour.liga.uebung) lists.push({ matches: S.matches, start: tourStart() });
     var map = collectStats(lists, S.profiles.map(function (p) { return p.id; }));
@@ -1567,7 +1567,7 @@
         if (m.done && knownPlayers(m.p)) out.push({ m: m, at: m.at, live: true });
       });
     }
-    S.history.forEach(function (h) {
+    wertbareHistorie().forEach(function (h) {
       if (!h.liga || h.liga.uebung || !h.matches) return;
       h.matches.forEach(function (m) {
         if (m.done && knownPlayers(m.p)) out.push({ m: m, at: h.at });
@@ -2870,7 +2870,7 @@
       b.classList.toggle('active', b.getAttribute('data-value') === mode);
     });
 
-    var ligaSpieltage = S.history.filter(function (h) { return h.liga && !h.liga.uebung && h.matches; });
+    var ligaSpieltage = wertbareHistorie().filter(function (h) { return h.liga && !h.liga.uebung && h.matches; });
     var log = allGamesLog().filter(function (row) { return row.kind === mode; });
     var modeName = mode === '501' ? 'Classic' : mode === 'liga' ? 'Liga' : kindName(mode);
     $('boards-sub').textContent = mode === 'liga'

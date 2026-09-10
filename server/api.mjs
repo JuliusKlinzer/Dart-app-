@@ -229,6 +229,10 @@ export function createApi(db, config) {
     sendJson(res, 200, { ok: true });
   }
 
+  /* Testkonten sieht, wer sieht_test hat -- und ein Testkonto selbst, sonst
+     verloere es beim Anmelden sein eigenes Profil und seine eigenen Spiele. */
+  function siehtTest(u) { return u.sieht_test || u.test ? 1 : 0; }
+
   /* Roster: alle aktiven Accounts, damit man Kollegen ins Turnier waehlen kann.
      Testkonten (test = 1) sieht nur, wer sieht_test hat -- fuer alle anderen
      gibt es sie nicht. */
@@ -240,7 +244,7 @@ export function createApi(db, config) {
           ' AND (test = 0 OR ? = 1)' +
           ' ORDER BY display_name COLLATE NOCASE'
       )
-      .all(u.sieht_test ? 1 : 0);
+      .all(siehtTest(u));
     sendJson(res, 200, { nutzer: alle.map(oeffentlich) });
   }
 
@@ -323,7 +327,7 @@ export function createApi(db, config) {
           ' ORDER BY g.seq' +
           ' LIMIT ?'
       )
-      .all(since, u.sieht_test ? 1 : 0, SEITE + 1);
+      .all(since, siehtTest(u), SEITE + 1);
 
     const mehr = zeilen.length > SEITE;
     const seite = mehr ? zeilen.slice(0, SEITE) : zeilen;
