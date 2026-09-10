@@ -1207,7 +1207,13 @@
 
   function pressKey(k) {
     UI.error = '';
-    if (k === 'del') { klick(); UI.input = UI.input.slice(0, -1); render(); return; }
+    /* Zurueck nimmt erst Ziffern, dann - bei leerem Feld - die letzte
+       Aufnahme zurueck: so kommt man mit derselben Taste zum Wurf davor
+       und zum vorigen Spieler. */
+    if (k === 'del') {
+      if (UI.input === '') { undo(); return; }
+      klick(); UI.input = UI.input.slice(0, -1); render(); return;
+    }
     if (k === 'ok') {
       /* OK auf leerem Feld ist die No-Score-Aufnahme: 0 Punkte, drei
          Darts - in jedem Modus mit Punkte-Eingabe. */
@@ -1219,8 +1225,9 @@
     var val = parseInt(next, 10);
     if (val > 180) { UI.error = 'Maximal 180'; render(); return; }
     UI.input = String(val);
-    // Sobald keine weitere Ziffer mehr passen kann, direkt übernehmen (spart einen Tap).
-    if (val >= 19) { submitTotal(); return; }
+    /* Keine automatische Uebernahme mehr: jede Aufnahme wird mit OK
+       bestaetigt - ein Vertipper bei der dritten Ziffer landete sonst sofort
+       im Spiel. */
     render();
   }
 
@@ -2344,6 +2351,9 @@
        Eingabefeld unten fest (siehe body.im-spiel in styles.css). */
     document.body.classList.toggle('im-spiel',
       S.screen === 'game' || S.screen === 'cricket' || S.screen === 'rtw' || S.screen === 'finisher');
+    /* Das X01-Spielbild ist auf jeder Bildschirmgroesse fest im Rahmen
+       (siehe body.fix-spiel) - nichts scrollt, weder Seite noch Spielbild. */
+    document.body.classList.toggle('fix-spiel', S.screen === 'game');
     if (S.screen === 'setup') renderSetup();
     /* Der Hintergrundtakt laeuft nur da, wo man ihn auch sieht: im
        Turnierbildschirm. Sonst fragt die App den ganzen Abend nach Daten,
@@ -3688,8 +3698,14 @@
       });
       if (route) {
         for (var kr = 0; kr < route.length && UI.darts.length + kr < 3; kr++) {
-          kacheln[UI.darts.length + kr] = '<span class="fk' + (kr === 0 ? ' jetzt' : '') + '">' +
-            Checkout.pretty(route[kr]) + '</span>';
+          /* Die vorgeschlagene Kachel ist zugleich der Bestaetigungsknopf:
+             wer die 14 trifft, tippt auf die 14 statt sie im Zahlenfeld zu
+             suchen. data-num/data-mult nimmt derselbe Handler wie die
+             Zahlentasten. */
+          var kSoll = labelDart(route[kr]);
+          kacheln[UI.darts.length + kr] = '<button type="button" class="fk tipp' + (kr === 0 ? ' jetzt' : '') + '"' +
+            ' data-num="' + kSoll.n + '" data-mult="' + kSoll.m + '" aria-label="' + Checkout.pretty(route[kr]) + ' getroffen">' +
+            Checkout.pretty(route[kr]) + '</button>';
         }
       }
       for (var kx = 0; kx < 3; kx++) if (!kacheln[kx]) kacheln[kx] = '<span class="fk leer">–</span>';

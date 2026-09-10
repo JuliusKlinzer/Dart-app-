@@ -65,7 +65,8 @@ const tapText = async (t, scope = 'body') => { await page.locator(`${scope} >> t
 /* Punkte über das Zahlenfeld eingeben (wie am Handy getippt). */
 async function typeScore(n) {
   for (const c of String(n)) await page.locator(`.keypad button[data-key="${c}"]`).click();
-  if (n <= 18) await page.locator('.keypad button[data-key="ok"]').click();
+  /* Jede Aufnahme wird mit OK bestaetigt -- keine automatische Uebernahme. */
+  await page.locator('.keypad button[data-key="ok"]').click();
 }
 async function dart(label) {
   if (label === 'BULL') return page.locator('[data-bull]').click();
@@ -2844,6 +2845,52 @@ group('Testspieler: Spiele mit ihnen bleiben aus der Statistik');
   check('er steht nicht mehr in der Rangliste', nachher.rang.indexOf(vorher.id) < 0 && vorher.rang.indexOf(vorher.id) >= 0);
   check('das Flag zurueck: alles wie vorher', (await page.evaluate((id) => window.__dart.career()[id].matches, vorher.id)) === vorher.matches);
 }
+
+/* ---------- Eingabe: OK immer, Zurueck bis zum Wurf davor, Kachel als Taste ---------- */
+group('Eingabe: nichts wird automatisch uebernommen');
+await page.evaluate(() => {
+  const D = window.__dart, S = D.state();
+  S.game = null; S.matches = []; S.tour = null;
+  S.lineup = D.activeProfiles().slice(0, 2).map((p) => p.id);
+  S.mode = 'quick';
+  S.settings.start = 501; S.settings.dartModeFrom = 170;
+  S.settings.quickSaetze = 1; S.settings.quickLegs = 1;
+  D.save(); D.setScreen('setup');
+});
+await page.locator('[data-action="start-game"]').click();
+await bullOffGo();
+check('Modus-Umschalter steht oben im Kopf', await page.locator('#screen-game .game-header #mode-toggle').isVisible());
+check('die Seite ist im Spiel fest (body ohne Scrollen)',
+  await page.evaluate(() => document.body.classList.contains('fix-spiel') && getComputedStyle(document.body).overflow === 'hidden'));
+for (const c of ['1', '8', '0']) await page.locator(`.keypad button[data-key="${c}"]`).click();
+check('drei Ziffern werden nicht von selbst gebucht', (await rest(0)) === '501' && (await text('#score-display')) === '180');
+await page.locator('.keypad button[data-key="ok"]').click();
+check('erst OK bucht die 180', (await rest(0)) === '321');
+await typeScore(60);
+check('Spieler 2 hat 441', (await rest(1)) === '441');
+await page.locator('.keypad button[data-key="del"]').click();
+check('Zurueck bei leerem Feld nimmt die letzte Aufnahme zurueck', (await rest(1)) === '501');
+check('und Spieler 2 ist wieder am Wurf', await page.evaluate(() => {
+  const D = window.__dart, m = D.currentMatch();
+  return D.activePlayer(D.activeLeg(m), m) === m.p[1];
+}));
+await typeScore(60);                                  // Spieler 2: 441
+await typeScore(180);                                 // Spieler 1: 141 -> Finish-Bereich
+await typeScore(60);                                  // Spieler 2: 381
+check('Spieler 1 steht bei 141 im Einzel-Dart-Modus', (await rest(0)) === '141' && await visible('#pad-darts'));
+check('Single/Double/Triple-Reihe hat Tastenhoehe', await page.evaluate(() => {
+  const b = document.querySelector('#mult-row button'), n = document.querySelector('#num-grid button');
+  return b.getBoundingClientRect().height >= n.getBoundingClientRect().height * 0.8;
+}));
+const kachel = page.locator('#game-kacheln .fk.tipp').first();
+check('die vorgeschlagene Kachel ist eine Taste', (await kachel.count()) === 1 && (await kachel.innerText()).trim() === 'T20');
+await kachel.click();
+check('Tipp auf die Kachel bucht den Dart', await page.evaluate(() => {
+  const d = window.__dart.ui().darts;
+  return d.length === 1 && d[0].m === 3 && d[0].n === 20;
+}));
+check('Rest laeuft mit: 81', (await rest(0)) === '81');
+await page.evaluate(() => { const D = window.__dart, S = D.state(); S.game = null; D.save(); D.setScreen('setup'); });
 
 group('Fehlerfreiheit');
 check('keine JS-Fehler', errors.length === 0, errors.join(' | '));

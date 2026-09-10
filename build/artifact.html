@@ -2348,6 +2348,9 @@ button, input, select, textarea { font-family: inherit; }
   font-variant-numeric: tabular-nums;
 }
 .fin-kacheln .fk.jetzt { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+/* Vorgeschlagene Kachel als Taste: gleicher Look, aber druckbar. */
+.fin-kacheln .fk.tipp { cursor: pointer; font: inherit; font-size: inherit; font-weight: inherit; -webkit-tap-highlight-color: transparent; }
+.fin-kacheln .fk.tipp:active { transform: scale(0.96); filter: brightness(1.15); }
 .fin-kacheln .fk.gut {
   background: rgba(63, 191, 127, 0.14); border-color: #2c7d54; color: #6fe0a8;
 }
@@ -2887,7 +2890,10 @@ body.am-board #screen-bulloff.turnier.active {
 #screen-game:not(.turnier) .pad:not(.hidden) { flex: 1 1 auto; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
 #screen-game:not(.turnier) #pad-total .keypad,
 #screen-game:not(.turnier) #pad-darts .num-grid { flex: 1 1 auto; min-height: 0; grid-auto-rows: 1fr; max-height: none; }
-#screen-game:not(.turnier) #pad-darts .mult-row { flex: none; height: auto; }
+/* Single/Double/Triple so hoch wie eine Zahlenreihe: fuenf gleiche Reihen. */
+#screen-game:not(.turnier) #pad-darts .mult-row { flex: 1 1 0; min-height: 0; height: auto; }
+#screen-game:not(.turnier) #pad-darts .mult-row button { min-height: 0; height: 100%; font-size: 1.25rem; }
+#screen-game:not(.turnier) #pad-darts .num-grid { flex: 4 1 0; }
 #screen-game:not(.turnier) .quick-row,
 #screen-game:not(.turnier) .display-row,
 #screen-game:not(.turnier) .mult-row { margin-bottom: 0; }
@@ -2900,12 +2906,41 @@ body.am-board #screen-bulloff.turnier.active {
 @media (orientation: landscape) and (min-width: 700px) {
   #screen-game:not(.turnier) .game-body { flex-direction: column; gap: 0; }
   #screen-game:not(.turnier) .game-main { flex: 0 1 auto; }
-  #screen-game:not(.turnier) .pcard { min-height: clamp(120px, 24vh, 240px); display: flex; flex-direction: column; justify-content: center; }
-  #screen-game:not(.turnier) .pcard .rest-zeile { font-size: clamp(3rem, 11vh, 5.6rem); }
+  #screen-game:not(.turnier) .pcard { min-height: clamp(170px, 34vh, 330px); }
+  #screen-game:not(.turnier) .pcard .rest-zeile { font-size: clamp(3.4rem, 14vh, 6.4rem); }
   #screen-game:not(.turnier) .keypad button { min-height: 0; font-size: clamp(1.4rem, 4vh, 2rem); }
   #screen-game:not(.turnier) .score-display { font-size: clamp(2.2rem, 6vh, 3.6rem); }
   #screen-game:not(.turnier) .display-row { min-height: 0; }
 }
+/* Die Spielerfelder duerfen in die Hoehe: sie sind das, was man vom Board
+   aus liest. Das Tastenfeld bekommt, was bleibt. */
+#screen-game:not(.turnier) .pcard {
+  display: flex; flex-direction: column; justify-content: center;
+  min-height: clamp(110px, 22vh, 180px);
+}
+@media (min-width: 700px) and (min-height: 600px) {
+  #screen-game:not(.turnier) .pcard { min-height: clamp(220px, 32vh, 360px); }
+  #screen-game:not(.turnier) .pcard .rest-zeile { font-size: clamp(4.6rem, 12vh, 7rem); }
+}
+
+/* Der Modus-Umschalter steht oben im Kopf neben dem Zurueck-Knopf; der
+   Titel rueckt nach rechts und wird notfalls abgeschnitten. */
+.game-header #mode-toggle { flex: none; }
+.game-header .game-title { flex: 1 1 auto; min-width: 0; text-align: right; align-items: flex-end; }
+.game-header .game-title span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#screen-game.turnier #mode-toggle { display: none; }
+#screen-game .mode-row:empty, #screen-game .mode-row:has(> #visit-darts:empty) { display: none; }
+
+/* Das ganze Spielbild fest im Rahmen -- auf jeder Bildschirmgroesse. Der
+   body ist genau bildschirmhoch, nichts scrollt. */
+body.fix-spiel {
+  height: 100vh; height: 100dvh; min-height: 0; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+body.fix-spiel > * { flex: none; }
+body.fix-spiel #screen-game.active { flex: 1 1 auto; height: auto; min-height: 0; overflow: hidden; padding-bottom: 0; }
+body.fix-spiel #screen-game .game-body { flex: 1 1 auto; min-height: 0; }
+
 /* Am Handy: drei oder vier Spieler bleiben in einer Reihe, aber kompakt. */
 @media (max-width: 699px) {
   .scoreboard.viele .pcard .rest-zeile { font-size: clamp(1.5rem, 6.5vw, 2.4rem); }
@@ -3489,6 +3524,16 @@ body.am-board #screen-bulloff.turnier.active {
 <section id="screen-game" class="screen game">
   <header class="game-header">
     <button class="icon-btn" data-action="to-tournament" aria-label="Spiel verlassen, Stand bleibt erhalten">‹</button>
+    <!-- Drei direkt klickbare Eingabemodi, oben neben dem Zurück-Knopf.
+         "Turnier" (Riesenanzeige am Board) gibt es nur mit mindestens zwei
+         Spielern - allein wird der Knopf ausgeblendet. -->
+    <div class="segmented small" id="mode-toggle">
+      <button data-mode="total">Punkte</button>
+      <button data-mode="darts">Einzel-Darts</button>
+      <button data-mode="turnier">Turnier</button>
+      <!-- Nur mit optionaler Kamera-Schicht (js/kamera.js) sichtbar. -->
+      <button data-mode="kamera" class="hidden">Kamera</button>
+    </div>
     <div class="game-title">
       <span id="game-match-label"></span>
       <span id="game-leg-label" class="muted"></span>
@@ -3511,17 +3556,9 @@ body.am-board #screen-bulloff.turnier.active {
   </div>
 
   <div class="input-area">
+    <!-- Die laufende Aufnahme im Einzel-Dart-Modus; der Modus-Umschalter
+         selbst steht oben im Kopf. -->
     <div class="mode-row">
-      <!-- Drei direkt klickbare Eingabemodi. "Turnier" (Riesenanzeige am
-           Board) gibt es nur mit mindestens zwei Spielern - allein wird
-           der Knopf ausgeblendet. -->
-      <div class="segmented small" id="mode-toggle">
-        <button data-mode="total">Punkte</button>
-        <button data-mode="darts">Einzel-Darts</button>
-        <button data-mode="turnier">Turnier</button>
-        <!-- Nur mit optionaler Kamera-Schicht (js/kamera.js) sichtbar. -->
-        <button data-mode="kamera" class="hidden">Kamera</button>
-      </div>
       <div id="visit-darts" class="visit-darts"></div>
     </div>
 
@@ -5265,7 +5302,13 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
 
   function pressKey(k) {
     UI.error = '';
-    if (k === 'del') { klick(); UI.input = UI.input.slice(0, -1); render(); return; }
+    /* Zurueck nimmt erst Ziffern, dann - bei leerem Feld - die letzte
+       Aufnahme zurueck: so kommt man mit derselben Taste zum Wurf davor
+       und zum vorigen Spieler. */
+    if (k === 'del') {
+      if (UI.input === '') { undo(); return; }
+      klick(); UI.input = UI.input.slice(0, -1); render(); return;
+    }
     if (k === 'ok') {
       /* OK auf leerem Feld ist die No-Score-Aufnahme: 0 Punkte, drei
          Darts - in jedem Modus mit Punkte-Eingabe. */
@@ -5277,8 +5320,9 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
     var val = parseInt(next, 10);
     if (val > 180) { UI.error = 'Maximal 180'; render(); return; }
     UI.input = String(val);
-    // Sobald keine weitere Ziffer mehr passen kann, direkt übernehmen (spart einen Tap).
-    if (val >= 19) { submitTotal(); return; }
+    /* Keine automatische Uebernahme mehr: jede Aufnahme wird mit OK
+       bestaetigt - ein Vertipper bei der dritten Ziffer landete sonst sofort
+       im Spiel. */
     render();
   }
 
@@ -6402,6 +6446,9 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
        Eingabefeld unten fest (siehe body.im-spiel in styles.css). */
     document.body.classList.toggle('im-spiel',
       S.screen === 'game' || S.screen === 'cricket' || S.screen === 'rtw' || S.screen === 'finisher');
+    /* Das X01-Spielbild ist auf jeder Bildschirmgroesse fest im Rahmen
+       (siehe body.fix-spiel) - nichts scrollt, weder Seite noch Spielbild. */
+    document.body.classList.toggle('fix-spiel', S.screen === 'game');
     if (S.screen === 'setup') renderSetup();
     /* Der Hintergrundtakt laeuft nur da, wo man ihn auch sieht: im
        Turnierbildschirm. Sonst fragt die App den ganzen Abend nach Daten,
@@ -7746,8 +7793,14 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
       });
       if (route) {
         for (var kr = 0; kr < route.length && UI.darts.length + kr < 3; kr++) {
-          kacheln[UI.darts.length + kr] = '<span class="fk' + (kr === 0 ? ' jetzt' : '') + '">' +
-            Checkout.pretty(route[kr]) + '</span>';
+          /* Die vorgeschlagene Kachel ist zugleich der Bestaetigungsknopf:
+             wer die 14 trifft, tippt auf die 14 statt sie im Zahlenfeld zu
+             suchen. data-num/data-mult nimmt derselbe Handler wie die
+             Zahlentasten. */
+          var kSoll = labelDart(route[kr]);
+          kacheln[UI.darts.length + kr] = '<button type="button" class="fk tipp' + (kr === 0 ? ' jetzt' : '') + '"' +
+            ' data-num="' + kSoll.n + '" data-mult="' + kSoll.m + '" aria-label="' + Checkout.pretty(route[kr]) + ' getroffen">' +
+            Checkout.pretty(route[kr]) + '</button>';
         }
       }
       for (var kx = 0; kx < 3; kx++) if (!kacheln[kx]) kacheln[kx] = '<span class="fk leer">–</span>';

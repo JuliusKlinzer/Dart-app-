@@ -241,16 +241,19 @@ Spielplan-Kasten.
 ## Eingabe
 
 **Punkte-Modus (Standard):** Die geworfene Gesamtpunktzahl der Aufnahme eintippen
-(0–180). Ab 19 wird automatisch übernommen, sobald keine weitere Ziffer mehr passen
-kann – ein Tap pro Aufnahme weniger. Für 0–18 bestätigt `OK`. Darüber liegt eine
-Schnellwahl mit den häufigsten Werten (26, 41, 45, 60, 81, 85, 100, 140, 180).
+(0–180) und mit `OK` bestätigen – immer, es wird nichts automatisch übernommen.
+`←` löscht die letzte Ziffer; bei leerem Feld nimmt es die letzte Aufnahme zurück,
+also zum Wurf davor und zum vorigen Spieler. Darüber liegt eine Schnellwahl mit den
+häufigsten Werten (26, 41, 45, 60, 81, 85, 100, 140, 180), die sofort bucht.
 
 **Einzel-Dart-Modus:** Schaltet automatisch um, sobald der Rest im Finish-Bereich
 liegt (Standard: ab 170, in den Einstellungen auf 100/180/nie änderbar). Dann wird
 Dart für Dart eingegeben: Single/Double/Triple wählen, Zahl tippen – plus `25`,
 `Bull` und `Miss`. Die Tasten behalten dabei die Feldzahl (18 bleibt 18) und
-bekommen ein kleines D bzw. T davor, damit das Zielfeld erkennbar bleibt. Umschalten
-geht jederzeit von Hand über die Knöpfe über der Eingabe:
+bekommen ein kleines D bzw. T davor, damit das Zielfeld erkennbar bleibt. Die
+vorgeschlagenen Kacheln sind zugleich Tasten: Wer die angesagte 14 trifft, tippt
+einfach auf die Kachel „14“, statt sie im Zahlenfeld zu suchen. Umschalten
+geht jederzeit von Hand über die Knöpfe oben im Kopf neben dem Zurück-Pfeil:
 **Punkte / Einzel-Darts / Turnier / Kamera** – direkt anklickbar, und mit der
 **Tab-Taste** schaltet die Tastatur durch dieselben Modi im Kreis.
 Der Turnier-Knopf verschwindet nur, wenn jemand allein spielt; der

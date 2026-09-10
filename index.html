@@ -590,6 +590,16 @@
 <section id="screen-game" class="screen game">
   <header class="game-header">
     <button class="icon-btn" data-action="to-tournament" aria-label="Spiel verlassen, Stand bleibt erhalten">‹</button>
+    <!-- Drei direkt klickbare Eingabemodi, oben neben dem Zurück-Knopf.
+         "Turnier" (Riesenanzeige am Board) gibt es nur mit mindestens zwei
+         Spielern - allein wird der Knopf ausgeblendet. -->
+    <div class="segmented small" id="mode-toggle">
+      <button data-mode="total">Punkte</button>
+      <button data-mode="darts">Einzel-Darts</button>
+      <button data-mode="turnier">Turnier</button>
+      <!-- Nur mit optionaler Kamera-Schicht (js/kamera.js) sichtbar. -->
+      <button data-mode="kamera" class="hidden">Kamera</button>
+    </div>
     <div class="game-title">
       <span id="game-match-label"></span>
       <span id="game-leg-label" class="muted"></span>
@@ -612,17 +622,9 @@
   </div>
 
   <div class="input-area">
+    <!-- Die laufende Aufnahme im Einzel-Dart-Modus; der Modus-Umschalter
+         selbst steht oben im Kopf. -->
     <div class="mode-row">
-      <!-- Drei direkt klickbare Eingabemodi. "Turnier" (Riesenanzeige am
-           Board) gibt es nur mit mindestens zwei Spielern - allein wird
-           der Knopf ausgeblendet. -->
-      <div class="segmented small" id="mode-toggle">
-        <button data-mode="total">Punkte</button>
-        <button data-mode="darts">Einzel-Darts</button>
-        <button data-mode="turnier">Turnier</button>
-        <!-- Nur mit optionaler Kamera-Schicht (js/kamera.js) sichtbar. -->
-        <button data-mode="kamera" class="hidden">Kamera</button>
-      </div>
       <div id="visit-darts" class="visit-darts"></div>
     </div>
 
