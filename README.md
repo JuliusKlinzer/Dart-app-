@@ -311,7 +311,10 @@ Punkte-Eingabe je Buchung (OK, Schnellwahl, Enter am Board),
 im Cricket, Round the World und Finisher je Feld, und einmal beim
 „Weiter ▸". Jeder Tipp auf eine Ziffer, den Umschalter oder Single/Double/Triple
 gibt einen **ganz leisen, weichen Tastenton**; jede **Rücknahme gleitet** sanft
-nach unten statt zu klicken. Der Ton startet
+nach unten statt zu klicken. Im Online-Spiel klingt die Buchung des anderen auf
+dem eigenen Tablet ebenfalls als Pomp, gefolgt vom Klopfen – die Tastentöne
+bleiben lokal. War das Tablet zwischendurch dunkel, wacht der Ton von selbst
+wieder auf. Der Ton startet
 nach der ersten Berührung (iOS gibt Audio erst nach einer Geste frei);
 Browser ohne AAC bekommen einen synthetischen Ersatzschlag.
 

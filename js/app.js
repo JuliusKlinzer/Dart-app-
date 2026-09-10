@@ -128,7 +128,14 @@
   /* Leiser Tastenton fuer Ziffern und Umschalter - Buchungen haben den Pomp. */
   function tipp() { if (window.DartSound && window.DartSound.tipp) window.DartSound.tipp(); }
   /* Zwei Schlaege: im Online-Spiel hat der andere gerade eingetragen. */
-  function klopfen() { UI.klopfen = Date.now(); if (window.DartSound && window.DartSound.klopfen) window.DartSound.klopfen(); }
+  function klopfen() {
+    UI.klopfen = Date.now();
+    if (!window.DartSound) return;
+    /* Pomp fuer die Buchung des anderen, dann das Klopfen -- jede Eingabe
+       ist auf beiden Tablets zu hoeren, nur die Tastentoene bleiben lokal. */
+    if (window.DartSound.fremdeEingabe) window.DartSound.fremdeEingabe();
+    else if (window.DartSound.klopfen) window.DartSound.klopfen();
+  }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
   function uid() { return Math.random().toString(36).slice(2, 9); }
   function sum(arr, f) { var t = 0; for (var i = 0; i < arr.length; i++) t += f(arr[i]); return t; }

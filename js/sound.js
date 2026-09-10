@@ -24,7 +24,21 @@
       try { ctx = new AC(); } catch (e) { return; }
       lade();
     }
-    if (ctx.state === 'suspended') { try { ctx.resume(); } catch (e) { /* egal */ } }
+    /* iOS kennt neben 'suspended' auch 'interrupted' (Bildschirm war dunkel,
+       App im Hintergrund, Anruf). Beides wieder anwerfen -- sonst blieb ein
+       Tablet, das im Online-Spiel nur zuschaut, den ganzen Abend stumm. */
+    if (ctx.state !== 'running') { try { ctx.resume(); } catch (e) { /* egal */ } }
+  }
+
+  /* Ein Ton, der ohne eigenen Tipp kommt (der andere hat online eingetragen):
+     schlaeft der Kontext, erst wecken und den Ton nach dem Aufwachen spielen. */
+  function nachAufwachen(spiele) {
+    if (!ctx) return;
+    if (ctx.state === 'running') { spiele(); return; }
+    try {
+      var p = ctx.resume();
+      if (p && p.then) p.then(spiele, function () { /* bleibt stumm */ });
+    } catch (e) { /* egal */ }
   }
 
   function lade() {
@@ -143,16 +157,31 @@
   }
   function spieleKlopfen() {
     try { if (navigator.vibrate) navigator.vibrate([70, 70, 70]); } catch (e) { /* egal */ }
-    if (!ctx || ctx.state !== 'running') return;
-    var t = ctx.currentTime;
-    if (t - zuletztGeklopft < 0.3) return;
-    zuletztGeklopft = t;
-    schlag(t, 240);
-    schlag(t + 0.17, 210);
+    nachAufwachen(function () {
+      var t = ctx.currentTime;
+      if (t - zuletztGeklopft < 0.3) return;
+      zuletztGeklopft = t;
+      schlag(t, 240);
+      schlag(t + 0.17, 210);
+    });
+  }
+
+  /* Die Eingabe des anderen im Online-Spiel: derselbe Pomp wie fuer die
+     eigene, danach das Klopfen -- so hoert man auf beiden Tablets jede
+     Buchung, und der Blick geht zum Stand. */
+  function spieleFremdeEingabe() {
+    nachAufwachen(function () {
+      spielePomp();
+      setTimeout(spieleKlopfen, 220);
+    });
   }
 
   document.addEventListener('pointerdown', weckauf, { capture: true, passive: true });
   document.addEventListener('keydown', weckauf, true);
+  /* Zurueck aus dem Hintergrund: den Kontext gleich wieder anwerfen, damit
+     die naechste Buchung des anderen nicht ins Leere klingt. */
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && ctx) weckauf(); });
+  window.addEventListener('focus', function () { if (ctx) weckauf(); });
 
-  window.DartSound = { pomp: spielePomp, klick: spieleKlick, tipp: spieleTipp, klopfen: spieleKlopfen };
+  window.DartSound = { pomp: spielePomp, klick: spieleKlick, tipp: spieleTipp, klopfen: spieleKlopfen, fremdeEingabe: spieleFremdeEingabe };
 })();
