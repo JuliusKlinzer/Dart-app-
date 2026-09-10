@@ -1,6 +1,7 @@
 /*
  * Die Klangschicht: der Pfeil-Einschlag ("Pomp") fuer jede gebuchte
- * Eingabe und ein trockener Klick fuer jede Ruecknahme. Der Einschlag ist
+ * Eingabe, ein ganz leiser weicher Tastenton fuer jeden Tipp aufs Feld
+ * und ein sanftes Zurueckgleiten fuer jede Ruecknahme. Der Einschlag ist
  * Julius' eigene Aufnahme, als Base64 eingebettet - so spielt sie offline,
  * im Einzeldatei-Buendel und ohne extra Netzanfrage. Kann der Browser das
  * AAC nicht dekodieren (seltene Chromium-Builds), springt ein per WebAudio
@@ -78,17 +79,38 @@
     r.start(t);
   }
 
+  /* Tastenton: ein sehr leiser, weicher Sinus-Blip - kaum mehr als ein
+     Fingernagel auf Glas. Er bestaetigt den Tipp, ohne aufzufallen. */
+  function spieleTipp() {
+    if (!darfSpielen()) return;
+    var t = ctx.currentTime;
+    var o = ctx.createOscillator();
+    var g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(1300, t);
+    o.frequency.exponentialRampToValueAtTime(900, t + 0.02);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.06, t + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(t); o.stop(t + 0.035);
+  }
+
+  /* Zuruecknehmen: kein harter Klick mehr, sondern ein weiches
+     Zurueckgleiten - ein Ton, der nach unten rutscht. */
   function spieleKlick() {
     if (!darfSpielen()) return;
     var t = ctx.currentTime;
     var o = ctx.createOscillator();
     var g = ctx.createGain();
-    o.type = 'square';
-    o.frequency.setValueAtTime(1900, t);
-    g.gain.setValueAtTime(0.18, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+    o.type = 'sine';
+    o.frequency.setValueAtTime(640, t);
+    o.frequency.exponentialRampToValueAtTime(240, t + 0.14);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.12, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
     o.connect(g); g.connect(ctx.destination);
-    o.start(t); o.stop(t + 0.04);
+    o.start(t); o.stop(t + 0.17);
   }
 
   /*
@@ -132,5 +154,5 @@
   document.addEventListener('pointerdown', weckauf, { capture: true, passive: true });
   document.addEventListener('keydown', weckauf, true);
 
-  window.DartSound = { pomp: spielePomp, klick: spieleKlick, klopfen: spieleKlopfen };
+  window.DartSound = { pomp: spielePomp, klick: spieleKlick, tipp: spieleTipp, klopfen: spieleKlopfen };
 })();

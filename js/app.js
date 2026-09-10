@@ -125,6 +125,8 @@
   /* Klaenge sind optional - ohne js/sound.js bleibt alles stumm. */
   function pomp() { if (window.DartSound) window.DartSound.pomp(); }
   function klick() { if (window.DartSound) window.DartSound.klick(); }
+  /* Leiser Tastenton fuer Ziffern und Umschalter - Buchungen haben den Pomp. */
+  function tipp() { if (window.DartSound && window.DartSound.tipp) window.DartSound.tipp(); }
   /* Zwei Schlaege: im Online-Spiel hat der andere gerade eingetragen. */
   function klopfen() { UI.klopfen = Date.now(); if (window.DartSound && window.DartSound.klopfen) window.DartSound.klopfen(); }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
@@ -1224,6 +1226,7 @@
     if (next.length > 3) return;
     var val = parseInt(next, 10);
     if (val > 180) { UI.error = 'Maximal 180'; render(); return; }
+    tipp();
     UI.input = String(val);
     /* Keine automatische Uebernahme mehr: jede Aufnahme wird mit OK
        bestaetigt - ein Vertipper bei der dritten Ziffer landete sonst sofort
@@ -6643,6 +6646,7 @@
 
     var modeBtn = ev.target.closest('#mode-toggle button');
     if (modeBtn) {
+      tipp();
       waehleEingabemodus(modeBtn.getAttribute('data-mode'));
       return;
     }
@@ -6676,7 +6680,7 @@
     }
 
     var mult = ev.target.closest('.mult-row button');
-    if (mult) { UI.mult = Number(mult.getAttribute('data-mult')); render(); return; }
+    if (mult) { tipp(); UI.mult = Number(mult.getAttribute('data-mult')); render(); return; }
 
     var bull = ev.target.closest('[data-bull]');
     if (bull) { spielDart(2, 25); return; }

@@ -307,9 +307,11 @@ Notausgang, damit niemand ohne Tab und Esc gefangen sitzt.
 **Klang:** Jede gebuchte Eingabe klingt wie ein Pfeil, der ins Board schlägt –
 **„Pomp"** (Julius' eigene Aufnahme, eingebettet in `js/sound.js`): beim
 Einzel-Dart je gesetztem Pfeil (auch Double/Triple-Wahl), bei der
-Punkte-Eingabe je Buchung (OK, Auto-Übernahme, Schnellwahl, Enter am Board),
+Punkte-Eingabe je Buchung (OK, Schnellwahl, Enter am Board),
 im Cricket, Round the World und Finisher je Feld, und einmal beim
-„Weiter ▸". Jede **Rücknahme klickt** stattdessen trocken. Der Ton startet
+„Weiter ▸". Jeder Tipp auf eine Ziffer, den Umschalter oder Single/Double/Triple
+gibt einen **ganz leisen, weichen Tastenton**; jede **Rücknahme gleitet** sanft
+nach unten statt zu klicken. Der Ton startet
 nach der ersten Berührung (iOS gibt Audio erst nach einer Geste frei);
 Browser ohne AAC bekommen einen synthetischen Ersatzschlag.
 

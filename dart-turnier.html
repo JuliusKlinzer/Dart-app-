@@ -3790,7 +3790,8 @@ body.fix-spiel #screen-game .game-body { flex: 1 1 auto; min-height: 0; }
 <script>
 /*
  * Die Klangschicht: der Pfeil-Einschlag ("Pomp") fuer jede gebuchte
- * Eingabe und ein trockener Klick fuer jede Ruecknahme. Der Einschlag ist
+ * Eingabe, ein ganz leiser weicher Tastenton fuer jeden Tipp aufs Feld
+ * und ein sanftes Zurueckgleiten fuer jede Ruecknahme. Der Einschlag ist
  * Julius' eigene Aufnahme, als Base64 eingebettet - so spielt sie offline,
  * im Einzeldatei-Buendel und ohne extra Netzanfrage. Kann der Browser das
  * AAC nicht dekodieren (seltene Chromium-Builds), springt ein per WebAudio
@@ -3868,17 +3869,38 @@ body.fix-spiel #screen-game .game-body { flex: 1 1 auto; min-height: 0; }
     r.start(t);
   }
 
+  /* Tastenton: ein sehr leiser, weicher Sinus-Blip - kaum mehr als ein
+     Fingernagel auf Glas. Er bestaetigt den Tipp, ohne aufzufallen. */
+  function spieleTipp() {
+    if (!darfSpielen()) return;
+    var t = ctx.currentTime;
+    var o = ctx.createOscillator();
+    var g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(1300, t);
+    o.frequency.exponentialRampToValueAtTime(900, t + 0.02);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.06, t + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(t); o.stop(t + 0.035);
+  }
+
+  /* Zuruecknehmen: kein harter Klick mehr, sondern ein weiches
+     Zurueckgleiten - ein Ton, der nach unten rutscht. */
   function spieleKlick() {
     if (!darfSpielen()) return;
     var t = ctx.currentTime;
     var o = ctx.createOscillator();
     var g = ctx.createGain();
-    o.type = 'square';
-    o.frequency.setValueAtTime(1900, t);
-    g.gain.setValueAtTime(0.18, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+    o.type = 'sine';
+    o.frequency.setValueAtTime(640, t);
+    o.frequency.exponentialRampToValueAtTime(240, t + 0.14);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.12, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
     o.connect(g); g.connect(ctx.destination);
-    o.start(t); o.stop(t + 0.04);
+    o.start(t); o.stop(t + 0.17);
   }
 
   /*
@@ -3922,7 +3944,7 @@ body.fix-spiel #screen-game .game-body { flex: 1 1 auto; min-height: 0; }
   document.addEventListener('pointerdown', weckauf, { capture: true, passive: true });
   document.addEventListener('keydown', weckauf, true);
 
-  window.DartSound = { pomp: spielePomp, klick: spieleKlick, klopfen: spieleKlopfen };
+  window.DartSound = { pomp: spielePomp, klick: spieleKlick, tipp: spieleTipp, klopfen: spieleKlopfen };
 })();
 
 /*
@@ -4252,6 +4274,8 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
   /* Klaenge sind optional - ohne js/sound.js bleibt alles stumm. */
   function pomp() { if (window.DartSound) window.DartSound.pomp(); }
   function klick() { if (window.DartSound) window.DartSound.klick(); }
+  /* Leiser Tastenton fuer Ziffern und Umschalter - Buchungen haben den Pomp. */
+  function tipp() { if (window.DartSound && window.DartSound.tipp) window.DartSound.tipp(); }
   /* Zwei Schlaege: im Online-Spiel hat der andere gerade eingetragen. */
   function klopfen() { UI.klopfen = Date.now(); if (window.DartSound && window.DartSound.klopfen) window.DartSound.klopfen(); }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
@@ -5351,6 +5375,7 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
     if (next.length > 3) return;
     var val = parseInt(next, 10);
     if (val > 180) { UI.error = 'Maximal 180'; render(); return; }
+    tipp();
     UI.input = String(val);
     /* Keine automatische Uebernahme mehr: jede Aufnahme wird mit OK
        bestaetigt - ein Vertipper bei der dritten Ziffer landete sonst sofort
@@ -10770,6 +10795,7 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
 
     var modeBtn = ev.target.closest('#mode-toggle button');
     if (modeBtn) {
+      tipp();
       waehleEingabemodus(modeBtn.getAttribute('data-mode'));
       return;
     }
@@ -10803,7 +10829,7 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
     }
 
     var mult = ev.target.closest('.mult-row button');
-    if (mult) { UI.mult = Number(mult.getAttribute('data-mult')); render(); return; }
+    if (mult) { tipp(); UI.mult = Number(mult.getAttribute('data-mult')); render(); return; }
 
     var bull = ev.target.closest('[data-bull]');
     if (bull) { spielDart(2, 25); return; }
