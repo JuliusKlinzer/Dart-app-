@@ -726,6 +726,7 @@ h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; colo
 }
 .num-grid button:active { background: var(--bg-3); }
 .num-grid button.wide { grid-column: span 2; }
+.num-grid button.zurueck { color: var(--muted); font-size: 1rem; }
 .num-grid.cricket-grid { grid-template-columns: repeat(4, 1fr); }
 .num-grid .mx { color: var(--accent); font-size: 0.72em; margin-right: 2px; vertical-align: 2px; }
 .num-grid button.miss { color: var(--red); }
@@ -1507,6 +1508,10 @@ button, input, select, textarea { font-family: inherit; }
   color: var(--on-primary);
 }
 .keypad button.ok:active, .match-row .go:active { background: #ffffff; }
+/* Die OK-Taste sitzt direkt neben den Ziffern und leuchtete in reinem Weiss
+   zu stark heraus -- etwas zurueckgenommen, bleibt aber die hellste Taste. */
+.keypad button.ok { background: #bfb9b9; border-color: #bfb9b9; }
+.keypad button.ok:active { background: #dcd6d6; }
 
 /* Der klebende Turnier-Knopf holt seine Farbe jetzt aus .btn.primary. Vorher
    stand hier der Akzent fest – geschrieben, als der noch grün war, und seit
@@ -2347,10 +2352,15 @@ button, input, select, textarea { font-family: inherit; }
   font-family: var(--font-cond); font-weight: 700; font-size: 1.7rem;
   font-variant-numeric: tabular-nums;
 }
-.fin-kacheln .fk.jetzt { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-/* Vorgeschlagene Kachel als Taste: gleicher Look, aber druckbar. */
-.fin-kacheln .fk.tipp { cursor: pointer; font: inherit; font-size: inherit; font-weight: inherit; -webkit-tap-highlight-color: transparent; }
+/* Vorgeschlagene Kachel als Taste: gleicher Look, aber druckbar. Ein
+   <button> bringt sonst die Systemfarbe mit (am iPad blau) und normale
+   Schrift -- deshalb Farbe erben und die fette Schmalschrift setzen. */
+.fin-kacheln .fk.tipp {
+  cursor: pointer; appearance: none; -webkit-appearance: none; padding: 0; color: inherit;
+  font-family: var(--font-cond); font-weight: 700; -webkit-tap-highlight-color: transparent;
+}
 .fin-kacheln .fk.tipp:active { transform: scale(0.96); filter: brightness(1.15); }
+.fin-kacheln .fk.jetzt { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .fin-kacheln .fk.gut {
   background: rgba(63, 191, 127, 0.14); border-color: #2c7d54; color: #6fe0a8;
 }
@@ -2894,6 +2904,10 @@ body.am-board #screen-bulloff.turnier.active {
 #screen-game:not(.turnier) #pad-darts .mult-row { flex: 1 1 0; min-height: 0; height: auto; }
 #screen-game:not(.turnier) #pad-darts .mult-row button { min-height: 0; height: 100%; font-size: 1.25rem; }
 #screen-game:not(.turnier) #pad-darts .num-grid { flex: 4 1 0; }
+/* Die Reihen teilen sich die Hoehe -- lieber flachere Tasten als unten
+   abgeschnittene. */
+#screen-game:not(.turnier) #pad-darts .num-grid button,
+#screen-game:not(.turnier) #pad-total .keypad button { min-height: 36px; height: 100%; }
 #screen-game:not(.turnier) .quick-row,
 #screen-game:not(.turnier) .display-row,
 #screen-game:not(.turnier) .mult-row { margin-bottom: 0; }
@@ -2925,10 +2939,18 @@ body.am-board #screen-bulloff.turnier.active {
 
 /* Der Modus-Umschalter steht oben im Kopf neben dem Zurueck-Knopf; der
    Titel rueckt nach rechts und wird notfalls abgeschnitten. */
-.game-header #mode-toggle { flex: none; }
+.game-header #mode-toggle { flex: none; align-self: stretch; display: flex; }
+.game-header #mode-toggle button { min-height: 0; height: 100%; padding-top: 0; padding-bottom: 0; }
 .game-header .game-title { flex: 1 1 auto; min-width: 0; text-align: right; align-items: flex-end; }
 .game-header .game-title span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #screen-game.turnier #mode-toggle { display: none; }
+/* Am Board: der Rest steht exakt in der Mitte der Karte, die zuvor
+   geworfene Zahl klein rechts daneben -- sie darf die grosse Zahl nicht
+   aus der Mitte schieben. */
+#screen-game.turnier .pcard .rest-zeile { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 0; }
+#screen-game.turnier .pcard .rest { grid-column: 2; }
+#screen-game.turnier .pcard .letzte-box { grid-column: 3; justify-self: start; margin-left: 0.18em; border-left-width: 0.03em; }
+#screen-game.turnier .pcard .letzte, #screen-game.turnier .pcard .letzte-alt { font-size: 0.24em; }
 #screen-game .mode-row:empty, #screen-game .mode-row:has(> #visit-darts:empty) { display: none; }
 
 /* Das ganze Spielbild fest im Rahmen -- auf jeder Bildschirmgroesse. Der
@@ -7802,6 +7824,17 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
             ' data-num="' + kSoll.n + '" data-mult="' + kSoll.m + '" aria-label="' + Checkout.pretty(route[kr]) + ' getroffen">' +
             Checkout.pretty(route[kr]) + '</button>';
         }
+      } else if (UI.darts.length < 3 && !ohneFinish) {
+        /* Kein Finish mehr mit den restlichen Darts: wie im Finisher steht
+           dann der Stellwurf da (42 Rest -> 10, damit 32 bleibt) -- gestrichelt,
+           und ebenfalls antippbar. */
+        var kStell = finisherStellwurf(kRest, kDbl);
+        if (kStell) {
+          var kStellSoll = labelDart(kStell);
+          kacheln[UI.darts.length] = '<button type="button" class="fk tipp stellen"' +
+            ' data-num="' + kStellSoll.n + '" data-mult="' + kStellSoll.m + '" aria-label="Stellwurf ' + kStell + ' getroffen">' +
+            kStell + '</button>';
+        }
       }
       for (var kx = 0; kx < 3; kx++) if (!kacheln[kx]) kacheln[kx] = '<span class="fk leer">–</span>';
       kBox.innerHTML = kacheln.join('');
@@ -7959,13 +7992,16 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
         nums += '<button data-num="' + n + '" class="' + (n === hlNum ? 'hl' : '') + '">' +
           (prefix ? '<span class="mx">' + prefix + '</span>' : '') + n + '</button>';
       }
+      /* Unterste Reihe: links Zurueck (letzter Dart bzw. letzte Aufnahme),
+         dann Miss, Bull, Bull x2, rechts Weiter. */
+      nums += '<button class="zurueck" data-action="undo" aria-label="Letzten Dart zurücknehmen">‹ Zurück</button>';
       nums += '<button class="miss" data-num="0">Miss</button>';
       nums += '<button class="bull ' + (hl === '25' ? 'hl' : '') + '" data-num="25">Bull</button>';
       nums += '<button class="bull ' + (hl === 'BULL' ? 'hl' : '') + '" data-bull="1">Bull ×2</button>';
       /* Dreimal am Doppel vorbei muss nicht dreimal getippt werden: dieser
          Knopf schließt die Aufnahme ab und füllt die fehlenden Darts als
          Fehlwürfe auf. */
-      nums += '<button class="end-visit wide" data-action="end-visit">Weiter ▸</button>';
+      nums += '<button class="end-visit" data-action="end-visit">Weiter ▸</button>';
       $('num-grid').innerHTML = nums;
     }
   }

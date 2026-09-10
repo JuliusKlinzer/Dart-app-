@@ -252,14 +252,17 @@ Dart für Dart eingegeben: Single/Double/Triple wählen, Zahl tippen – plus `2
 `Bull` und `Miss`. Die Tasten behalten dabei die Feldzahl (18 bleibt 18) und
 bekommen ein kleines D bzw. T davor, damit das Zielfeld erkennbar bleibt. Die
 vorgeschlagenen Kacheln sind zugleich Tasten: Wer die angesagte 14 trifft, tippt
-einfach auf die Kachel „14“, statt sie im Zahlenfeld zu suchen. Umschalten
+einfach auf die Kachel „14“, statt sie im Zahlenfeld zu suchen. Geht mit den
+restlichen Darts kein Finish mehr, steht in der nächsten Kachel gestrichelt der
+**Stellwurf** wie im Finisher (42 Rest → „10“, damit 32 bleibt) – auch antippbar. Umschalten
 geht jederzeit von Hand über die Knöpfe oben im Kopf neben dem Zurück-Pfeil:
 **Punkte / Einzel-Darts / Turnier / Kamera** – direkt anklickbar, und mit der
 **Tab-Taste** schaltet die Tastatur durch dieselben Modi im Kreis.
 Der Turnier-Knopf verschwindet nur, wenn jemand allein spielt; der
 Kamera-Knopf erscheint nur mit Server (siehe [Kamera-Kopplung](#kamera-kopplung-linse)).
 
-Rechts unten sitzt **„Weiter ▸"**: Er schließt die Aufnahme mit einem Tipp ab und
+Links unten sitzt **„‹ Zurück"** (letzter Dart bzw. letzte Aufnahme zurück), rechts
+unten **„Weiter ▸"**: Er schließt die Aufnahme mit einem Tipp ab und
 füllt die fehlenden Darts als Fehlwürfe auf – wer dreimal am Doppel vorbeiwirft,
 tippt einmal statt dreimal „Miss", und die Dart-Zahl (und damit der Average) stimmt.
 Die laufende Aufnahme steht dabei in **drei großen Kacheln** wie im Finisher: leer zu

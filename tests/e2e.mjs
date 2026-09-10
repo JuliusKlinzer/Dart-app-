@@ -2890,6 +2890,34 @@ check('Tipp auf die Kachel bucht den Dart', await page.evaluate(() => {
   return d.length === 1 && d[0].m === 3 && d[0].n === 20;
 }));
 check('Rest laeuft mit: 81', (await rest(0)) === '81');
+check('Kachel-Taste ist nicht blau, sondern erbt die Textfarbe', await page.evaluate(() => {
+  const b = document.querySelector('#game-kacheln .fk.tipp:not(.jetzt)');
+  return getComputedStyle(b).color === getComputedStyle(b.parentElement).color && getComputedStyle(b).fontWeight === '700';
+}));
+/* 81 mit zwei Darts geht (T19 D12); nach einer 1 bleiben 80 mit einem Dart --
+   kein Finish, also steht der Stellwurf da: T20 laesst 20. */
+await dart('S1');
+check('kein Finish mehr: Stellwurf in der letzten Kachel',
+  (await page.locator('#game-kacheln .fk.stellen').count()) === 1 &&
+  ['T16', 'T20'].indexOf((await page.locator('#game-kacheln .fk.stellen').innerText()).trim()) >= 0,
+  await text('#game-kacheln'));
+await page.locator('#num-grid button.zurueck').click();
+check('Zurueck links im Zahlenfeld nimmt den letzten Dart zurueck',
+  (await page.evaluate(() => window.__dart.ui().darts.length)) === 1 && (await rest(0)) === '81');
+check('unterste Reihe: Zurueck, Miss, Bull, Bull x2, Weiter in einer Zeile', await page.evaluate(() => {
+  const z = document.querySelector('#num-grid button.zurueck').getBoundingClientRect();
+  const w = document.querySelector('#num-grid button.end-visit').getBoundingClientRect();
+  return Math.abs(z.top - w.top) < 1;
+}));
+check('Umschalter so hoch wie der Zurueck-Knopf', await page.evaluate(() => {
+  const t = document.querySelector('.game-header #mode-toggle').getBoundingClientRect().height;
+  const b = document.querySelector('.game-header .icon-btn').getBoundingClientRect().height;
+  return Math.abs(t - b) <= 1;
+}));
+check('Zahlentasten der Einzel-Darts liegen ganz im Bild', await page.evaluate(() => {
+  const r = document.querySelector('#num-grid button:last-child').getBoundingClientRect();
+  return r.bottom <= window.innerHeight + 0.5;
+}));
 await page.evaluate(() => { const D = window.__dart, S = D.state(); S.game = null; D.save(); D.setScreen('setup'); });
 
 group('Fehlerfreiheit');

@@ -3707,6 +3707,17 @@
             ' data-num="' + kSoll.n + '" data-mult="' + kSoll.m + '" aria-label="' + Checkout.pretty(route[kr]) + ' getroffen">' +
             Checkout.pretty(route[kr]) + '</button>';
         }
+      } else if (UI.darts.length < 3 && !ohneFinish) {
+        /* Kein Finish mehr mit den restlichen Darts: wie im Finisher steht
+           dann der Stellwurf da (42 Rest -> 10, damit 32 bleibt) -- gestrichelt,
+           und ebenfalls antippbar. */
+        var kStell = finisherStellwurf(kRest, kDbl);
+        if (kStell) {
+          var kStellSoll = labelDart(kStell);
+          kacheln[UI.darts.length] = '<button type="button" class="fk tipp stellen"' +
+            ' data-num="' + kStellSoll.n + '" data-mult="' + kStellSoll.m + '" aria-label="Stellwurf ' + kStell + ' getroffen">' +
+            kStell + '</button>';
+        }
       }
       for (var kx = 0; kx < 3; kx++) if (!kacheln[kx]) kacheln[kx] = '<span class="fk leer">–</span>';
       kBox.innerHTML = kacheln.join('');
@@ -3864,13 +3875,16 @@
         nums += '<button data-num="' + n + '" class="' + (n === hlNum ? 'hl' : '') + '">' +
           (prefix ? '<span class="mx">' + prefix + '</span>' : '') + n + '</button>';
       }
+      /* Unterste Reihe: links Zurueck (letzter Dart bzw. letzte Aufnahme),
+         dann Miss, Bull, Bull x2, rechts Weiter. */
+      nums += '<button class="zurueck" data-action="undo" aria-label="Letzten Dart zurücknehmen">‹ Zurück</button>';
       nums += '<button class="miss" data-num="0">Miss</button>';
       nums += '<button class="bull ' + (hl === '25' ? 'hl' : '') + '" data-num="25">Bull</button>';
       nums += '<button class="bull ' + (hl === 'BULL' ? 'hl' : '') + '" data-bull="1">Bull ×2</button>';
       /* Dreimal am Doppel vorbei muss nicht dreimal getippt werden: dieser
          Knopf schließt die Aufnahme ab und füllt die fehlenden Darts als
          Fehlwürfe auf. */
-      nums += '<button class="end-visit wide" data-action="end-visit">Weiter ▸</button>';
+      nums += '<button class="end-visit" data-action="end-visit">Weiter ▸</button>';
       $('num-grid').innerHTML = nums;
     }
   }
