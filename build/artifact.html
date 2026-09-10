@@ -8327,6 +8327,9 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
   function labelDart(label) {
     if (label === 'BULL') return { m: 2, n: 25 };
     if (label === '25') return { m: 1, n: 25 };
+    /* Der Solver schreibt 'S14', der Stellwurf nur '14' -- beides ein
+       Single. Ohne diese Zeile wurde aus '14' die 4 und aus '5' NaN. */
+    if (/^[0-9]+$/.test(label)) return { m: 1, n: parseInt(label, 10) };
     var m = label.charAt(0) === 'T' ? 3 : label.charAt(0) === 'D' ? 2 : 1;
     return { m: m, n: parseInt(label.slice(1), 10) };
   }

@@ -2894,16 +2894,23 @@ check('Kachel-Taste ist nicht blau, sondern erbt die Textfarbe', await page.eval
   const b = document.querySelector('#game-kacheln .fk.tipp:not(.jetzt)');
   return getComputedStyle(b).color === getComputedStyle(b.parentElement).color && getComputedStyle(b).fontWeight === '700';
 }));
-/* 81 mit zwei Darts geht (T19 D12); nach einer 1 bleiben 80 mit einem Dart --
-   kein Finish, also steht der Stellwurf da: T20 laesst 20. */
-await dart('S1');
+/* 81 mit zwei Darts geht (T19 D12); nach einer T20 bleiben 21 mit einem Dart --
+   kein Finish, also steht der Stellwurf da: die 1 laesst 20. Ein Single ohne
+   Buchstaben davor -- genau der Fall, der frueher NaN buchte. */
+await dart('T20');
 check('kein Finish mehr: Stellwurf in der letzten Kachel',
   (await page.locator('#game-kacheln .fk.stellen').count()) === 1 &&
-  ['T16', 'T20'].indexOf((await page.locator('#game-kacheln .fk.stellen').innerText()).trim()) >= 0,
+  (await page.locator('#game-kacheln .fk.stellen').innerText()).trim() === '1',
   await text('#game-kacheln'));
+await page.locator('#game-kacheln .fk.stellen').click();
+check('Tipp auf den Stellwurf bucht eine saubere 1 (kein NaN), Aufnahme zu Ende',
+  (await rest(0)) === '20' && !(await text('#scoreboard')).includes('NaN'), await rest(0));
+check('die letzte Aufnahme steht als 121 am Spieler',
+  (await page.locator('.pcard').first().locator('.letzte').innerText()) === '121');
+await page.locator('#mode-toggle button[data-mode="darts"]').click();
 await page.locator('#num-grid button.zurueck').click();
-check('Zurueck links im Zahlenfeld nimmt den letzten Dart zurueck',
-  (await page.evaluate(() => window.__dart.ui().darts.length)) === 1 && (await rest(0)) === '81');
+check('Zurueck links im Zahlenfeld nimmt die ganze Aufnahme zurueck',
+  (await page.evaluate(() => window.__dart.ui().darts.length)) === 0 && (await rest(0)) === '141', await rest(0));
 check('unterste Reihe: Zurueck, Miss, Bull, Bull x2, Weiter in einer Zeile', await page.evaluate(() => {
   const z = document.querySelector('#num-grid button.zurueck').getBoundingClientRect();
   const w = document.querySelector('#num-grid button.end-visit').getBoundingClientRect();
