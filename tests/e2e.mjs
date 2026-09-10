@@ -2817,6 +2817,34 @@ check('die vier Startspieler bleiben ohne Server erhalten',
 check('und niemand ist als Gast markiert',
   await page.evaluate(() => !window.__dart.state().profiles.some((p) => p.gast)));
 
+/* ---------- Testspieler zaehlen nirgends ---------- */
+group('Testspieler: Spiele mit ihnen bleiben aus der Statistik');
+{
+  /* Ein Spieler mit gespielten Partien wird zum Testkonto erklaert (das Flag
+     setzt sonst der Server im Roster): seine Spiele fallen aus Karriere,
+     Rangliste und Spieleliste, die der anderen bleiben. */
+  const vorher = await page.evaluate(() => {
+    const D = window.__dart, c = D.career();
+    const id = Object.keys(c).find((k) => c[k].matches > 0);
+    const spiele = D.allMatches().length;
+    return { id, matches: c[id].matches, spiele, rang: D.ranking('won').map((r) => r.id) };
+  });
+  const nachher = await page.evaluate((id) => {
+    const D = window.__dart, S = D.state();
+    S.profiles.find((p) => p.id === id).test = true;
+    const c = D.career();
+    const out = { matches: c[id].matches, spiele: D.allMatches().length, rang: D.ranking('won').map((r) => r.id),
+      andere: Object.keys(c).filter((k) => k !== id && c[k].matches > 0).length };
+    S.profiles.find((p) => p.id === id).test = false;
+    return out;
+  }, vorher.id);
+  check('vorher hatte der Spieler Partien', vorher.matches > 0);
+  check('als Testspieler zaehlt keine einzige mehr', nachher.matches === 0, String(nachher.matches));
+  check('die Spieleliste verliert genau seine Spiele', nachher.spiele < vorher.spiele);
+  check('er steht nicht mehr in der Rangliste', nachher.rang.indexOf(vorher.id) < 0 && vorher.rang.indexOf(vorher.id) >= 0);
+  check('das Flag zurueck: alles wie vorher', (await page.evaluate((id) => window.__dart.career()[id].matches, vorher.id)) === vorher.matches);
+}
+
 group('Fehlerfreiheit');
 check('keine JS-Fehler', errors.length === 0, errors.join(' | '));
 

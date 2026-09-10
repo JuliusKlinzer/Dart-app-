@@ -240,6 +240,26 @@ Migrationen laufen beim Start automatisch, jede `.sql`-Datei genau einmal
 Bei Änderungen an `css/`, `js/` oder `index.html`: **`CACHE` in `sw.js`
 hochzählen** (`v2`, `v3`, …), sonst bekommen installierte Geräte das Update nie.
 
+## Testkonten
+
+Zum Ausprobieren nach einem Deploy gibt es Testkonten (`users.test = 1`) – derzeit
+„Test Eins“ und „Test Zwei“, von Migration `009_testkonten.sql` markiert. Sie und
+jedes Spiel mit ihrer Beteiligung bekommt nur, wer `users.sieht_test = 1` hat
+(derzeit nur Julius). Alle anderen Geräte kennen die Testspieler nicht, ihre
+Spiele laufen dort nie ein; frühere Testspiele hat die Migration als Grabsteine
+zurückgezogen, sie verschwinden beim nächsten Abgleich überall. Auf dem Gerät des
+Testers zählen Testspiele in keine Statistik (Marke „Test“ in der Spielerliste).
+
+```bash
+# weiteres Testkonto markieren / Marke entfernen
+ssh root@178.105.234.52 "cd /opt/dart-turnier && docker compose -f compose.yml exec darts    node server/scripts/testkonto.mjs test3@blink180.de"          # --aus nimmt sie zurück
+# jemandem die Testkonten zeigen
+ssh root@178.105.234.52 "cd /opt/dart-turnier && docker compose -f compose.yml exec darts    node server/scripts/testkonto.mjs --sieht kollege@example.de"
+```
+
+Bisherige Spiele eines frisch markierten Kontos bleiben stehen – die zieht bei
+Bedarf `server/scripts/spiel-zurueckziehen.mjs` zurück.
+
 ## Passwort vergessen
 
 Es werden keine Mails verschickt – das läuft über dich:

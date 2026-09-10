@@ -107,12 +107,16 @@
         // Der buergerliche Name ebenso -- er steht auf dem Spielbericht.
         p.voll = r.voll || null;
         p.hidden = false;
+        // Testkonto: kommt nur bei dem an, der es sehen darf -- und zaehlt
+        // dort in keine Statistik.
+        p.test = !!r.test;
       } else {
         S.profiles.push({
           id: r.id, name: r.name, avatar: r.avatar,
           hue: typeof r.hue === 'number' && r.hue ? r.hue : D.freeHue(),
           dbl: r.dbl || null,
           voll: r.voll || null,
+          test: !!r.test,
           created: Date.now()
         });
       }

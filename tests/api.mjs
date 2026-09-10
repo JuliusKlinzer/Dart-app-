@@ -8,6 +8,7 @@
  */
 import { spawn } from 'node:child_process';
 import { hashPassword } from '../server/lib/password.mjs';
+import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -698,6 +699,47 @@ async function main() {
     ok(!!r.daten.spiel.state, 'samt Schlussstand');
     r = await tobi.ruf('PUT', '/api/live/live1', { state: stand2, seq: r.daten.spiel.seq });
     gleich(r.status, 409, 'in ein geschlossenes Spiel schreibt niemand mehr');
+
+    console.log('\nTestkonten');
+    const tester = geraet('Tester');
+    r = await tester.ruf('POST', '/api/register', {
+      invite: CODE, email: 'tester@example.de', name: 'Test Eins', password: 'nurzumtesten26'
+    });
+    gleich(r.status, 201, 'ein Testkonto wird wie jedes andere registriert');
+    const tester_id = r.daten.nutzer.id;
+    /* Die Flags setzt niemand ueber die API -- sie kommen per Migration bzw.
+       von Hand in die Datenbank. */
+    {
+      const direkt = new DatabaseSync(dbDatei);
+      direkt.exec("UPDATE users SET test = 1 WHERE email = 'tester@example.de'");
+      direkt.exec("UPDATE users SET sieht_test = 1 WHERE email = 'julius@example.de'");
+      direkt.close();
+    }
+    r = await tobi.ruf('GET', '/api/users');
+    ok(!r.daten.nutzer.some((n) => n.id === tester_id), 'Tobi sieht das Testkonto nicht im Roster');
+    r = await julius.ruf('GET', '/api/users');
+    const testEintrag = r.daten.nutzer.find((n) => n.id === tester_id);
+    ok(!!testEintrag && testEintrag.test === true, 'Julius sieht es -- als Testkonto markiert');
+    ok(r.daten.nutzer.find((n) => n.id === tobi_id).test === false, 'echte Konten tragen die Marke nicht');
+
+    r = await tobi.ruf('GET', '/api/games?since=0');
+    const vorTest = r.daten.cursor;
+    const testspiel = spielPayload([julius_id, tester_id]);
+    testspiel.id = 'testspiel-mit-tester';
+    r = await julius.ruf('POST', '/api/games', {
+      id: testspiel.id, kind: '501', at: testspiel.at, payload: testspiel,
+      players: [{ userId: julius_id }, { userId: tester_id }]
+    });
+    gleich(r.status, 201, 'Julius traegt ein Spiel mit dem Testkonto ein');
+    r = await tobi.ruf('GET', '/api/games?since=' + vorTest);
+    ok(!r.daten.spiele.some((s) => s.id === testspiel.id), 'bei Tobi laeuft das Testspiel nie ein');
+    r = await julius.ruf('GET', '/api/games?since=' + vorTest);
+    ok(r.daten.spiele.some((s) => s.id === testspiel.id), 'bei Julius schon');
+    r = await julius.ruf('DELETE', '/api/games/' + testspiel.id);
+    gleich(r.status, 200, 'und er kann es zurueckziehen');
+    r = await tobi.ruf('GET', '/api/games?since=' + vorTest);
+    ok(r.daten.spiele.some((s) => s.id === testspiel.id && s.geloescht === true),
+      'der Grabstein erreicht trotzdem alle -- frueher verteilte Testspiele verschwinden so');
 
     console.log('\nStatische Dateien');
     let res = await fetch(BASIS + '/');

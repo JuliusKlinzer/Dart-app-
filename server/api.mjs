@@ -39,7 +39,7 @@ export function createApi(db, config) {
 
   /* Nach aussen geben wir nie den Passwort-Hash oder fremde E-Mails heraus. */
   function oeffentlich(u) {
-    return { id: u.id, name: u.display_name, avatar: u.avatar, hue: u.hue, dbl: u.dbl, voll: u.real_name || null };
+    return { id: u.id, name: u.display_name, avatar: u.avatar, hue: u.hue, dbl: u.dbl, voll: u.real_name || null, test: u.test ? true : false };
   }
   function eigenesProfil(u) {
     return { id: u.id, name: u.display_name, email: u.email, avatar: u.avatar, hue: u.hue, dbl: u.dbl, voll: u.real_name || null, seit: u.created_at };
@@ -229,15 +229,18 @@ export function createApi(db, config) {
     sendJson(res, 200, { ok: true });
   }
 
-  /* Roster: alle aktiven Accounts, damit man Kollegen ins Turnier waehlen kann. */
+  /* Roster: alle aktiven Accounts, damit man Kollegen ins Turnier waehlen kann.
+     Testkonten (test = 1) sieht nur, wer sieht_test hat -- fuer alle anderen
+     gibt es sie nicht. */
   async function nutzerListe(req, res) {
-    verlangeNutzer(req);
+    const u = verlangeNutzer(req);
     const alle = db
       .prepare(
-        "SELECT id, display_name, real_name, avatar, hue, dbl FROM users WHERE status = 'aktiv'" +
+        "SELECT id, display_name, real_name, avatar, hue, dbl, test FROM users WHERE status = 'aktiv'" +
+          ' AND (test = 0 OR ? = 1)' +
           ' ORDER BY display_name COLLATE NOCASE'
       )
-      .all();
+      .all(u.sieht_test ? 1 : 0);
     sendJson(res, 200, { nutzer: alle.map(oeffentlich) });
   }
 
@@ -303,7 +306,10 @@ export function createApi(db, config) {
 
     /* Alle Spiele der Mannschaft, nicht nur die eigenen: Rangliste und
        Statistik muessen auf jedem Geraet dasselbe zeigen - sonst fehlt
-       bei Lenas das Spiel, das Wuidara allein geschrieben hat. */
+       bei Lenas das Spiel, das Wuidara allein geschrieben hat.
+       Ausnahme Testspiele (ein Testkonto beteiligt): die bekommt nur, wer
+       sieht_test hat. Grabsteine gehen immer raus -- ein frueher verteiltes
+       Testspiel muss ueberall wieder verschwinden. */
     const zeilen = db
       .prepare(
         'SELECT g.id, g.seq, g.kind, g.payload, g.client_at, g.deleted_at,' +
@@ -311,10 +317,13 @@ export function createApi(db, config) {
           '  FROM games g' +
           '  JOIN users r ON r.id = g.recorded_by' +
           ' WHERE g.seq > ?' +
+          '   AND (g.deleted_at IS NOT NULL OR ? = 1 OR NOT EXISTS (' +
+          '         SELECT 1 FROM game_players gp JOIN users tu ON tu.id = gp.user_id' +
+          '          WHERE gp.game_id = g.id AND tu.test = 1))' +
           ' ORDER BY g.seq' +
           ' LIMIT ?'
       )
-      .all(since, SEITE + 1);
+      .all(since, u.sieht_test ? 1 : 0, SEITE + 1);
 
     const mehr = zeilen.length > SEITE;
     const seite = mehr ? zeilen.slice(0, SEITE) : zeilen;

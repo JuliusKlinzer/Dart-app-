@@ -431,6 +431,13 @@ Jedes gespielte Spiel wird vollständig gespeichert — mit allen Aufnahmen und,
 Einzel-Dart-Modus, jedem einzelnen Dart. Sämtliche Werte werden daraus neu berechnet,
 ein Undo korrigiert also auch die Karrierewerte.
 
+**Testspieler zählen nirgends.** Konten, die auf dem Server als Testkonto markiert
+sind (Marke „Test“ in der Spielerliste), gibt es nur für den, der sie sehen darf –
+alle anderen bekommen weder die Spieler noch ihre Spiele. Und auch bei ihm fließt
+kein Spiel mit Testbeteiligung in Karriere, Rangliste, Rekorde, Diagramm oder
+Spieleliste. So lässt sich nach einem Update am echten Server ausprobieren, ohne
+die Statistik der Mannschaft zu berühren (siehe [DEPLOY.md](DEPLOY.md#testkonten)).
+
 **Im Spielerprofil** (Reiter „Spieler"):
 
 | Bereich | Werte |

@@ -252,6 +252,18 @@
   }
   function pname(id) { return profile(id).name; }
 
+  /* Testspieler (Konto-Flag vom Server, nur fuer den Tester sichtbar): zum
+     Ausprobieren nach einem Deploy da. Ein Spiel, an dem einer beteiligt
+     war, zaehlt nirgends -- nicht in Karriere, Rangliste, Rekorden, Diagramm
+     oder Spieleliste. */
+  function istTest(id) { var p = profile(id); return !!(p && p.test); }
+  function testSpiel(h) {
+    var ids = h.lineup || h.players || (h.p ? h.p : []);
+    return ids.some(istTest);
+  }
+  function wertbareHistorie() { return S.history.filter(function (h) { return !testSpiel(h); }); }
+  function turnierWertbar() { return !tourPlayers().some(istTest); }
+
   /* Ein Ort für die Namen der Spielarten – sie tauchen an einem halben Dutzend
      Stellen auf, und eine vergessene wäre sofort sichtbar. */
   /* Das Schnelle Spiel laeuft auf dem X01-Bildschirm, die anderen freien
@@ -1464,17 +1476,18 @@
        damit in dieselbe Classic-Auswertung. */
     /* Uebungsspiele (Training gegen Bots oder Team B) zaehlen in keine
        Wertung - Siege gegen leichte Bots waeren sonst beliebig farmbar. */
-    var lists = S.history.filter(function (h) {
+    var wertbar = wertbareHistorie();
+    var lists = wertbar.filter(function (h) {
       if (h.liga && h.liga.uebung) return false;
       return (h.kind || '501') === '501' || h.kind === 'quick';
     }).map(function (h) { return { matches: h.matches, start: (h.settings && h.settings.start) || 501 }; });
-    if (S.matches.length && !(S.tour && S.tour.liga && S.tour.liga.uebung)) {
+    if (S.matches.length && !(S.tour && S.tour.liga && S.tour.liga.uebung) && turnierWertbar()) {
       lists.push({ matches: S.matches, start: tourStart() });
     }
     var ids = S.profiles.map(function (p) { return p.id; });
     var map = collectStats(lists, ids);
-    var open = S.game && S.game.done ? [S.game] : [];
-    S.history.concat(open).forEach(function (h) {
+    var open = S.game && S.game.done && !testSpiel(S.game) ? [S.game] : [];
+    wertbar.concat(open).forEach(function (h) {
       if (h.liga && h.liga.uebung) return;
       var kind = h.kind || '501';
       if (kind === '501') {
@@ -1579,7 +1592,7 @@
     /* Reihenfolge je Modus: Siege zuerst, dann der Average (oder was in
        diesem Modus dafuer steht), dann der Rest. Der erste Eintrag ist auch
        die Voreinstellung beim Moduswechsel -- siehe renderBoards(). */
-    { mode: '501', key: 'won', label: 'Siege', get: function (s) { return s.won; }, fmt: function (v) { return String(v); }, min: function (s) { return s.matches > 0; }, hint: 'Gewonnene Spiele über alle Turniere.' },
+    { mode: '501', key: 'won', label: 'Siege', get: function (s) { return s.won; }, fmt: function (v) { return String(v); }, min: function (s) { return s.matches > 0; }, hint: '' },
     { mode: '501', key: 'avg', label: 'Average', unit: '', get: function (s) { return s.avg; }, fmt: function (v) { return v.toFixed(2); }, min: function (s) { return s.darts >= MIN_DARTS_FOR_AVG; }, hint: 'Punkte je 3 Darts über alle Spiele. Zählt ab ' + MIN_DARTS_FOR_AVG + ' geworfenen Darts.' },
     { mode: '501', key: 'first9', label: 'First 9', get: function (s) { return s.first9; }, fmt: function (v) { return v.toFixed(2); }, min: function (s) { return s.first9Darts >= 9; }, hint: 'Average der ersten 9 Darts eines Legs – das Maß für den Scoring-Antritt.' },
     { mode: '501', key: 'doubleQuote', label: 'Doppelquote', get: function (s) { return s.doubleQuote; }, fmt: function (v) { return v.toFixed(1) + ' %'; }, min: function (s) { return s.doubleAttempts >= 3; }, hint: 'Getroffene Finishes je Dart auf ein mögliches Doppel (Rest 2–40 gerade oder Bull). Zählt ab 3 Versuchen.' },
@@ -1626,7 +1639,7 @@
     var rows = Object.keys(map).map(function (k) { return map[k]; }).filter(function (s) {
       /* Nur Stammspieler: Gaeste eines Abends (und Bots) gehoeren nicht
          in die Rangliste der Mannschaft - ihre Spiele bleiben im Verlauf. */
-      return def.min(s) && known[s.id] && !known[s.id].hidden && !known[s.id].bot && !known[s.id].gast;
+      return def.min(s) && known[s.id] && !known[s.id].hidden && !known[s.id].bot && !known[s.id].gast && !known[s.id].test;
     });
     rows.sort(function (a, b) {
       var d = def.asc ? def.get(a) - def.get(b) : def.get(b) - def.get(a);
@@ -1645,10 +1658,10 @@
 
   function allMatches() {
     var out = [];
-    if (S.matches.length && !(S.tour && S.tour.liga && S.tour.liga.uebung)) {
+    if (S.matches.length && !(S.tour && S.tour.liga && S.tour.liga.uebung) && turnierWertbar()) {
       S.matches.forEach(function (m) { if (m.done && knownPlayers(m.p)) out.push({ m: m, start: tourStart(), live: true }); });
     }
-    S.history.forEach(function (h) {
+    wertbareHistorie().forEach(function (h) {
       // Cricket, RTW und Finisher haben keine Match-Liste - und
       // Uebungsspiele zaehlen nirgends.
       if (h.liga && h.liga.uebung) return;
@@ -2138,8 +2151,8 @@
   /* Verlauf über alle Spielarten, neueste zuerst. */
   function allGamesLog() {
     var out = allMatches().map(function (e) { return { kind: '501', at: e.m.at || e.at, e: e, live: e.live }; });
-    var extra = S.history.filter(function (h) { return (h.kind || '501') !== '501'; });
-    if (S.game && S.game.done) extra = extra.concat([S.game]);
+    var extra = wertbareHistorie().filter(function (h) { return (h.kind || '501') !== '501'; });
+    if (S.game && S.game.done && !testSpiel(S.game)) extra = extra.concat([S.game]);
     extra.forEach(function (h) { out.push({ kind: h.kind, at: h.at, h: h, live: h === S.game }); });
     out.sort(function (a, b) { return (b.at || 0) - (a.at || 0); });
     return out;
@@ -2462,7 +2475,7 @@
       return '<div class="roster-item ' + (sel ? 'selected' : '') + '" data-action="toggle-lineup" data-id="' + p.id + '" role="button" tabindex="0">' +
         avatarHTML(p, 'md') +
         '<div class="who"><div class="nm">' + esc(p.name) +
-        (p.gast ? ' <span class="gast-marke">Gast</span>' : '') + '</div>' +
+        (p.gast ? ' <span class="gast-marke">Gast</span>' : p.test ? ' <span class="gast-marke">Test</span>' : '') + '</div>' +
         '<div class="sm">' + (st && st.matches ? 'Ø ' + st.avg.toFixed(1) + ' · ' + plural(st.won, 'Sieg', 'Siege') : 'noch kein Spiel') + '</div></div>' +
         /* Hier wird nur ausgewaehlt. Das eigene Profil pflegt man im Konto,
            und Gaeste bearbeitet man unter Spieler -- ein Stift neben jedem
@@ -2781,8 +2794,8 @@
         });
       });
     } else if (mode === 'cricket') {
-      var games = S.history.filter(function (h) { return h.kind === 'cricket'; }).slice().reverse();
-      if (S.game && S.game.kind === 'cricket' && S.game.done) games.push(S.game);
+      var games = wertbareHistorie().filter(function (h) { return h.kind === 'cricket'; }).slice().reverse();
+      if (S.game && S.game.kind === 'cricket' && S.game.done && !testSpiel(S.game)) games.push(S.game);
       games.forEach(function (h) {
         var cs = cricketState({ players: h.players, throws: h.throws, scoring: h.scoring });
         h.players.forEach(function (id) {
@@ -2866,7 +2879,7 @@
         : 'Liga · noch kein Spieltag gespielt')
       : log.length
         ? modeName + ' · ' + plural(log.length, 'Spiel', 'Spiele') +
-          (mode === '501' ? ' · ' + plural(S.history.filter(function (h) { return (h.kind || '501') === '501'; }).length, 'Turnier', 'Turniere') : '')
+          (mode === '501' ? ' · ' + plural(wertbareHistorie().filter(function (h) { return (h.kind || '501') === '501'; }).length, 'Turnier', 'Turniere') : '')
         : modeName + ' · noch keine Spiele';
 
     /* Verlauf: eine farbige Linie je Spieler. */
@@ -2893,6 +2906,7 @@
         '</div>';
     }).join('') : '<div class="board-empty">Dafür fehlen noch Daten.</div>';
     $('board-hint').textContent = def.hint;
+    $('board-hint').classList.toggle('hidden', !def.hint);
 
     /* Rekorde des jeweiligen Modus. */
     var recs = mode === '501' || mode === 'liga' ? [
@@ -3014,7 +3028,7 @@
         avatarHTML(p, 'lg') +
         '<div class="pc-main">' +
           '<div class="pc-name">' + esc(p.name) +
-            (p.gast ? ' <span class="gast-marke">Gast</span>' : '') +
+            (p.gast ? ' <span class="gast-marke">Gast</span>' : p.test ? ' <span class="gast-marke">Test</span>' : '') +
             (p.hidden ? ' <span class="muted">(ausgeblendet)</span>' : '') + '</div>' +
           '<div class="pc-stats">' +
             '<span>Ø <b>' + (st.darts ? st.avg.toFixed(1) : '–') + '</b></span>' +
