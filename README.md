@@ -21,7 +21,9 @@ wie eine native App und funktioniert auch ohne Internet.
 **iPad:** Hoch- und Querformat werden unterstützt. Das X01-Spielbild ist wie ein
 Scorer am Board aufgebaut: oben die Spieler nebeneinander in voller Breite, darunter
 Schnellwahl, getippte Zahl und das große Zahlenfeld, das den Rest der Höhe füllt; das
-Spielbild ist **fest im Rahmen** – nichts scrollt aus dem Bild. Tasten und
+Spielbild ist **fest im Rahmen** – auf jedem Format, nichts scrollt aus dem Bild,
+im Notfall werden die Tasten flacher. Nur am Handy quer stehen Spieler links und
+Tasten rechts, weil untereinander die Höhe fehlt. Tasten und
 Schrift werden auf Tablets automatisch größer, Doppeltipp-Zoom ist auf Buttons
 deaktiviert. Split View funktioniert ebenfalls – bei schmaler Spalte schaltet die App
 auf das Handy-Layout um.
@@ -314,7 +316,11 @@ gibt einen **ganz leisen, weichen Tastenton**; jede **Rücknahme gleitet** sanft
 nach unten statt zu klicken. Im Online-Spiel klingt die Buchung des anderen auf
 dem eigenen Tablet ebenfalls als Pomp, gefolgt vom Klopfen – die Tastentöne
 bleiben lokal. War das Tablet zwischendurch dunkel, wacht der Ton von selbst
-wieder auf. Der Ton startet
+wieder auf. Im Online-Spiel geht außerdem **jeder einzelne Dart** der
+Einzel-Dart-Eingabe sofort an die anderen Geräte: Rest und Kacheln laufen dort
+live mit, und wer als Nächster tippt, tippt auf derselben Aufnahme weiter. Eine
+**180 oder 60 des anderen wird auf allen Geräten gefeiert**, nicht nur auf dem,
+das eintippt. Der Ton startet
 nach der ersten Berührung (iOS gibt Audio erst nach einer Geste frei);
 Browser ohne AAC bekommen einen synthetischen Ersatzschlag.
 

@@ -2925,7 +2925,105 @@ check('Zahlentasten der Einzel-Darts liegen ganz im Bild', await page.evaluate((
   const r = document.querySelector('#num-grid button:last-child').getBoundingClientRect();
   return r.bottom <= window.innerHeight + 0.5;
 }));
+await page.evaluate(() => { window.__dart.ui().modeOverride = null; });
 await page.evaluate(() => { const D = window.__dart, S = D.state(); S.game = null; D.save(); D.setScreen('setup'); });
+
+/* ---------- Online: einzelne Darts live, Feier auf allen Geraeten ---------- */
+group('Online-Spiel: halbfertige Aufnahme geht mit, Feier bei allen');
+await page.evaluate(() => {
+  const D = window.__dart, S = D.state();
+  S.game = null; S.matches = []; S.tour = null;
+  S.lineup = D.activeProfiles().slice(0, 2).map((p) => p.id);
+  S.mode = 'quick';
+  S.settings.start = 501; S.settings.dartModeFrom = 170;
+  S.settings.quickSaetze = 1; S.settings.quickLegs = 1;
+  D.ui().modeOverride = null;
+  D.save(); D.setScreen('setup');
+});
+await page.locator('[data-action="start-game"]').click();
+await bullOffGo();
+await typeScore(180); await typeScore(60); await typeScore(180); await typeScore(60);   // 141 / 381
+/* Das Spiel wird nachtraeglich zum Online-Spiel erklaert (angelegt, Hash leer). */
+await page.evaluate(() => {
+  const D = window.__dart, S = D.state();
+  S.game.online = { sid: S.game.id, seq: 3, hash: '', mit: [], wartet: false };
+  D.save();
+});
+await page.locator('#game-kacheln .fk.tipp').first().click();     // T20 -> 81 offen
+check('der einzelne Dart steht im Stand fuer den Server', await page.evaluate(() => {
+  const st = window.__dart.liveStand();
+  return !!st && Array.isArray(st.state.offen) && st.state.offen.length === 1 && st.state.offen[0].v === 60;
+}));
+/* Der andere schickt seinen Stand: eine offene 19 statt der D20. */
+await page.evaluate(() => {
+  const D = window.__dart, S = D.state();
+  const fremd = JSON.parse(JSON.stringify(S.game));
+  delete fremd.online;
+  fremd.offen = [{ m: 1, n: 19, v: 19 }];
+  D.liveUebernehmen({ id: S.game.id, seq: 4, state: fremd, geaendertVon: 'u_fremd', geaendertVonName: 'Tobi' });
+  D.render();
+});
+check('die offene Aufnahme des anderen ist uebernommen', await page.evaluate(() => {
+  const d = window.__dart.ui().darts;
+  return d.length === 1 && d[0].n === 19 && !('offen' in window.__dart.state().game);
+}));
+check('der Rest laeuft live mit: 141 - 19 = 122', (await rest(0)) === '122');
+check('nach der Uebernahme ist nichts mehr hochzuladen (gleicher Hash)',
+  (await page.evaluate(() => window.__dart.liveStand())) === null);
+/* Der andere bucht eine 180: auch hier wird gefeiert. */
+await page.evaluate(() => {
+  const D = window.__dart, S = D.state();
+  const fremd = JSON.parse(JSON.stringify(S.game));
+  delete fremd.online;
+  const leg = fremd.legs[fremd.legs.length - 1];
+  const p = D.activePlayer(D.activeLeg(S.game), S.game);
+  leg.visits.push({ p, s: 60, d: 3, b: false, c: false, o: 0 });
+  leg.visits.push({ p: fremd.p.find((x) => x !== p), s: 180, d: 3, b: false, c: false, o: 0 });
+  D.liveUebernehmen({ id: S.game.id, seq: 5, state: fremd, geaendertVon: 'u_fremd', geaendertVonName: 'Tobi' });
+  D.render();
+});
+check('die 180 des anderen wird auch hier gefeiert', (await text('#feier')).includes('180'));
+await page.evaluate(() => { const D = window.__dart, S = D.state(); S.game = null; D.save(); D.setScreen('setup'); });
+
+/* ---------- Jedes Format: Tastenfeld ganz im Bild, nichts scrollt ---------- */
+group('Spielbild passt auf jedes Format ohne Scrollen');
+{
+  const vorher = page.viewportSize();
+  await page.evaluate(() => {
+    const D = window.__dart, S = D.state();
+    S.game = null; S.lineup = D.activeProfiles().slice(0, 2).map((p) => p.id); S.mode = 'quick';
+    S.settings.start = 501; S.settings.dartModeFrom = 170; D.ui().modeOverride = null; D.save(); D.setScreen('setup');
+  });
+  await page.locator('[data-action="start-game"]').click();
+  await bullOffGo();
+  await typeScore(180); await typeScore(60); await typeScore(180); await typeScore(60);   // 141: Einzel-Darts
+  const formate = [[1280, 800], [1024, 600], [800, 1280], [1194, 834], [360, 640], [412, 915], [844, 390]];
+  for (const [w, h] of formate) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.waitForTimeout(150);
+    const lage = await page.evaluate(() => {
+      const unten = (sel) => document.querySelector(sel).getBoundingClientRect().bottom;
+      return {
+        darts: unten('#num-grid button:last-child'),
+        seite: document.documentElement.scrollHeight <= window.innerHeight + 1 && document.body.scrollHeight <= window.innerHeight + 1,
+        tasteH: document.querySelector('#num-grid button').getBoundingClientRect().height,
+        innen: window.innerHeight
+      };
+    });
+    check(w + 'x' + h + ': Einzel-Dart-Tasten ganz im Bild, Seite scrollt nicht',
+      lage.darts <= lage.innen + 0.5 && lage.seite && lage.tasteH >= 28,
+      JSON.stringify(lage));
+    await page.locator('#mode-toggle button[data-mode="total"]').click();
+    const okLage = await page.evaluate(() => ({
+      ok: document.querySelector('.keypad button[data-key="ok"]').getBoundingClientRect().bottom, innen: window.innerHeight,
+      tasteH: document.querySelector('.keypad button[data-key="5"]').getBoundingClientRect().height
+    }));
+    check(w + 'x' + h + ': OK-Taste ganz im Bild', okLage.ok <= okLage.innen + 0.5 && okLage.tasteH >= 28, JSON.stringify(okLage));
+    await page.locator('#mode-toggle button[data-mode="darts"]').click();
+  }
+  await page.setViewportSize(vorher);
+  await page.evaluate(() => { const D = window.__dart, S = D.state(); S.game = null; D.save(); D.setScreen('setup'); });
+}
 
 group('Fehlerfreiheit');
 check('keine JS-Fehler', errors.length === 0, errors.join(' | '));

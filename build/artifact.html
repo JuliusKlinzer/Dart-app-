@@ -2895,11 +2895,17 @@ body.am-board #screen-bulloff.turnier.active {
    scrollen), nie die Tasten. Der Turnier-Modus behaelt sein Board-Layout. */
 #screen-game:not(.turnier) .game-main { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
 #screen-game:not(.turnier) .input-area {
-  flex: 1 0 auto; min-height: 0; margin-top: 0; display: flex; flex-direction: column;
+  flex: 1 1 auto; min-height: 0; margin-top: 0; display: flex; flex-direction: column;
 }
-#screen-game:not(.turnier) .pad:not(.hidden) { flex: 1 1 auto; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+/* Nichts hier hat eine feste Mindesthoehe: auf einem kurzen Tablet oder
+   Handy werden die Tasten flacher, statt unten aus dem Bild zu rutschen. */
+#screen-game:not(.turnier) .pad:not(.hidden) { flex: 1 1 auto; display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: hidden; }
 #screen-game:not(.turnier) #pad-total .keypad,
-#screen-game:not(.turnier) #pad-darts .num-grid { flex: 1 1 auto; min-height: 0; grid-auto-rows: 1fr; max-height: none; }
+#screen-game:not(.turnier) #pad-darts .num-grid { flex: 1 1 auto; min-height: 0; grid-auto-rows: minmax(0, 1fr); max-height: none; }
+#screen-game:not(.turnier) .fin-kacheln.gross .fk { min-height: 0; height: clamp(40px, 8vh, 88px); }
+#screen-game:not(.turnier) .quick-row button { min-height: 0; height: clamp(34px, 5.5vh, 54px); padding-top: 0; padding-bottom: 0; }
+#screen-game:not(.turnier) .display-row { min-height: 0; }
+#screen-game:not(.turnier) .game-main { flex: 0 1 auto; min-height: 0; }
 /* Single/Double/Triple so hoch wie eine Zahlenreihe: fuenf gleiche Reihen. */
 #screen-game:not(.turnier) #pad-darts .mult-row { flex: 1 1 0; min-height: 0; height: auto; }
 #screen-game:not(.turnier) #pad-darts .mult-row button { min-height: 0; height: 100%; font-size: 1.25rem; }
@@ -2907,7 +2913,7 @@ body.am-board #screen-bulloff.turnier.active {
 /* Die Reihen teilen sich die Hoehe -- lieber flachere Tasten als unten
    abgeschnittene. */
 #screen-game:not(.turnier) #pad-darts .num-grid button,
-#screen-game:not(.turnier) #pad-total .keypad button { min-height: 36px; height: 100%; }
+#screen-game:not(.turnier) #pad-total .keypad button { min-height: 0; height: 100%; }
 #screen-game:not(.turnier) .quick-row,
 #screen-game:not(.turnier) .display-row,
 #screen-game:not(.turnier) .mult-row { margin-bottom: 0; }
@@ -2920,7 +2926,7 @@ body.am-board #screen-bulloff.turnier.active {
 @media (orientation: landscape) and (min-width: 700px) {
   #screen-game:not(.turnier) .game-body { flex-direction: column; gap: 0; }
   #screen-game:not(.turnier) .game-main { flex: 0 1 auto; }
-  #screen-game:not(.turnier) .pcard { min-height: clamp(170px, 34vh, 330px); }
+  #screen-game:not(.turnier) .pcard { min-height: clamp(120px, 34vh, 330px); }
   #screen-game:not(.turnier) .pcard .rest-zeile { font-size: clamp(3.4rem, 14vh, 6.4rem); }
   #screen-game:not(.turnier) .keypad button { min-height: 0; font-size: clamp(1.4rem, 4vh, 2rem); }
   #screen-game:not(.turnier) .score-display { font-size: clamp(2.2rem, 6vh, 3.6rem); }
@@ -2933,7 +2939,7 @@ body.am-board #screen-bulloff.turnier.active {
   min-height: clamp(110px, 22vh, 180px);
 }
 @media (min-width: 700px) and (min-height: 600px) {
-  #screen-game:not(.turnier) .pcard { min-height: clamp(220px, 32vh, 360px); }
+  #screen-game:not(.turnier) .pcard { min-height: clamp(150px, 32vh, 360px); }
   #screen-game:not(.turnier) .pcard .rest-zeile { font-size: clamp(4.6rem, 12vh, 7rem); }
 }
 
@@ -2969,6 +2975,21 @@ body.fix-spiel #screen-game .game-body { flex: 1 1 auto; min-height: 0; }
   .scoreboard.viele .pcard .pname { font-size: 0.72rem; }
   .scoreboard.viele .pcard .pname .av.sm { display: none; }
   .scoreboard.viele .pcard .legs { display: block; font-size: 0.62rem; }
+}
+
+/* Handy quer (sehr flach): untereinander bleibt fuer fuenf Tastenreihen
+   kein Platz -- hier stehen die Spieler links und das Tastenfeld rechts.
+   Steht absichtlich am Ende: die Querformat-Regel fuer Tablets darueber
+   greift auch fuer breite Handys, diese hier ueberstimmt sie. */
+@media (orientation: landscape) and (max-height: 560px) {
+  #screen-game:not(.turnier) .game-body { flex-direction: row; gap: 10px; align-items: stretch; }
+  #screen-game:not(.turnier) .game-main { flex: 1 1 42%; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+  #screen-game:not(.turnier) .input-area { flex: 1 1 58%; min-width: 0; }
+  #screen-game:not(.turnier) .scoreboard { flex: 1 1 auto; grid-auto-rows: minmax(0, 1fr); margin-bottom: 4px; min-height: 0; }
+  #screen-game:not(.turnier) .pcard { min-height: 0; padding: 4px 6px; }
+  #screen-game:not(.turnier) .pcard .rest-zeile { font-size: clamp(1.8rem, 12vh, 3rem); }
+  #screen-game:not(.turnier) .fin-kacheln.gross .fk { height: clamp(32px, 11vh, 44px); }
+  #screen-game:not(.turnier) .quick-row button { height: clamp(30px, 9vh, 40px); }
 }
 
 </style>
@@ -4859,7 +4880,15 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
   /* Der Stand, wie er zum Server geht: das Spiel ohne das online-Feld. */
   function liveText(g) {
     var k = {};
-    Object.keys(g).forEach(function (key) { if (key !== 'online') k[key] = g[key]; });
+    Object.keys(g).forEach(function (key) { if (key !== 'online' && key !== 'offen') k[key] = g[key]; });
+    /* Die halbfertige Aufnahme (Einzel-Darts) geht mit: so sieht das andere
+       Tablet jeden Dart sofort -- Rest und Kacheln laufen live mit, nicht
+       erst mit der gebuchten Aufnahme. Der Empfaenger legt sie in UI.darts
+       und loescht den Schluessel wieder (liveUebernehmen), damit beide
+       Seiten denselben Text und damit denselben Hash bilden. */
+    if (g === S.game && g.kind === 'quick' && UI.darts.length) {
+      k.offen = UI.darts.map(function (d) { return { m: d.m, n: d.n, v: d.v }; });
+    }
     return JSON.stringify(k);
   }
   function liveHash(text) {
@@ -4938,8 +4967,21 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
     var text = JSON.stringify(neu);
     neu.online = liveMeta(spiel, text);
     liveNamenUebernehmen(neu);
+    /* Wer gerade wirft, dessen halbfertige Aufnahme uebernehmen wir mit --
+       wer als Naechster tippt, tippt auf derselben Aufnahme weiter. */
+    var offen = Array.isArray(neu.offen) ? neu.offen.map(function (d) { return { m: d.m, n: d.n, v: d.v }; }) : [];
+    delete neu.offen;
+    var fremd = spiel.geaendertVon && spiel.geaendertVon !== liveNutzer();
+    /* Der andere hat eine 180 oder 60 geworfen: auch hier feiern -- die
+       Feier gehoert zum Spiel, nicht zum Geraet, das eintippt. */
+    if (fremd && neu.kind === 'quick' && !neu.done) {
+      var altN = zaehleAufnahmen(alt), neuN = zaehleAufnahmen(neu);
+      var lv = neuN > altN ? letzteAufnahme(neu) : null;
+      if (lv && !lv.b && lv.s === 180) feiere180(lv.p);
+      else if (lv && !lv.b && lv.s === 60) feiere60(lv.p);
+    }
     S.game = neu;
-    UI.darts = []; UI.input = ''; UI.error = '';
+    UI.darts = offen; UI.input = ''; UI.error = '';
     UI.aufnahmeZeit = Date.now();
     /* Halbfertige Dialoge beziehen sich auf den alten Stand. */
     if (UI.overlay && (UI.overlay.type === 'checkout-darts' || UI.overlay.type === 'edit-visit')) UI.overlay = null;
@@ -4969,6 +5011,14 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
     }
     save();
     return true;
+  }
+
+  function zaehleAufnahmen(g) {
+    return sum(g && g.legs ? g.legs : [], function (l) { return l.visits.length; });
+  }
+  function letzteAufnahme(g) {
+    var leg = g && g.legs ? g.legs[g.legs.length - 1] : null;
+    return leg && leg.visits.length ? leg.visits[leg.visits.length - 1] : null;
   }
 
   /* Spiel beim Server weg: lokal weiterspielen, nicht mehr nachfragen. */
@@ -5434,6 +5484,7 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
     if (after === 0) { commitVisit(total, thrown, true, false, UI.darts); return true; }
     if (thrown === 3) { commitVisit(total, 3, false, false, UI.darts); return true; }
     render();
+    liveAnstossen();   // der einzelne Dart geht sofort zum anderen Tablet
     return true;
   }
 
@@ -5487,7 +5538,7 @@ if (typeof module !== 'undefined') module.exports = (typeof window !== 'undefine
   function undo() {
     klick();
     if (UI.overlay && UI.overlay.type === 'checkout-darts') { UI.overlay = null; UI.input = ''; render(); return; }
-    if (UI.darts.length) { UI.darts.pop(); UI.mult = 1; render(); return; }
+    if (UI.darts.length) { UI.darts.pop(); UI.mult = 1; render(); liveAnstossen(); return; }
 
     var m = currentMatch();
     if (!m) return;

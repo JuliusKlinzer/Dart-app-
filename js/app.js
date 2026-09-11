@@ -691,7 +691,15 @@
   /* Der Stand, wie er zum Server geht: das Spiel ohne das online-Feld. */
   function liveText(g) {
     var k = {};
-    Object.keys(g).forEach(function (key) { if (key !== 'online') k[key] = g[key]; });
+    Object.keys(g).forEach(function (key) { if (key !== 'online' && key !== 'offen') k[key] = g[key]; });
+    /* Die halbfertige Aufnahme (Einzel-Darts) geht mit: so sieht das andere
+       Tablet jeden Dart sofort -- Rest und Kacheln laufen live mit, nicht
+       erst mit der gebuchten Aufnahme. Der Empfaenger legt sie in UI.darts
+       und loescht den Schluessel wieder (liveUebernehmen), damit beide
+       Seiten denselben Text und damit denselben Hash bilden. */
+    if (g === S.game && g.kind === 'quick' && UI.darts.length) {
+      k.offen = UI.darts.map(function (d) { return { m: d.m, n: d.n, v: d.v }; });
+    }
     return JSON.stringify(k);
   }
   function liveHash(text) {
@@ -770,8 +778,21 @@
     var text = JSON.stringify(neu);
     neu.online = liveMeta(spiel, text);
     liveNamenUebernehmen(neu);
+    /* Wer gerade wirft, dessen halbfertige Aufnahme uebernehmen wir mit --
+       wer als Naechster tippt, tippt auf derselben Aufnahme weiter. */
+    var offen = Array.isArray(neu.offen) ? neu.offen.map(function (d) { return { m: d.m, n: d.n, v: d.v }; }) : [];
+    delete neu.offen;
+    var fremd = spiel.geaendertVon && spiel.geaendertVon !== liveNutzer();
+    /* Der andere hat eine 180 oder 60 geworfen: auch hier feiern -- die
+       Feier gehoert zum Spiel, nicht zum Geraet, das eintippt. */
+    if (fremd && neu.kind === 'quick' && !neu.done) {
+      var altN = zaehleAufnahmen(alt), neuN = zaehleAufnahmen(neu);
+      var lv = neuN > altN ? letzteAufnahme(neu) : null;
+      if (lv && !lv.b && lv.s === 180) feiere180(lv.p);
+      else if (lv && !lv.b && lv.s === 60) feiere60(lv.p);
+    }
     S.game = neu;
-    UI.darts = []; UI.input = ''; UI.error = '';
+    UI.darts = offen; UI.input = ''; UI.error = '';
     UI.aufnahmeZeit = Date.now();
     /* Halbfertige Dialoge beziehen sich auf den alten Stand. */
     if (UI.overlay && (UI.overlay.type === 'checkout-darts' || UI.overlay.type === 'edit-visit')) UI.overlay = null;
@@ -801,6 +822,14 @@
     }
     save();
     return true;
+  }
+
+  function zaehleAufnahmen(g) {
+    return sum(g && g.legs ? g.legs : [], function (l) { return l.visits.length; });
+  }
+  function letzteAufnahme(g) {
+    var leg = g && g.legs ? g.legs[g.legs.length - 1] : null;
+    return leg && leg.visits.length ? leg.visits[leg.visits.length - 1] : null;
   }
 
   /* Spiel beim Server weg: lokal weiterspielen, nicht mehr nachfragen. */
@@ -1266,6 +1295,7 @@
     if (after === 0) { commitVisit(total, thrown, true, false, UI.darts); return true; }
     if (thrown === 3) { commitVisit(total, 3, false, false, UI.darts); return true; }
     render();
+    liveAnstossen();   // der einzelne Dart geht sofort zum anderen Tablet
     return true;
   }
 
@@ -1319,7 +1349,7 @@
   function undo() {
     klick();
     if (UI.overlay && UI.overlay.type === 'checkout-darts') { UI.overlay = null; UI.input = ''; render(); return; }
-    if (UI.darts.length) { UI.darts.pop(); UI.mult = 1; render(); return; }
+    if (UI.darts.length) { UI.darts.pop(); UI.mult = 1; render(); liveAnstossen(); return; }
 
     var m = currentMatch();
     if (!m) return;
